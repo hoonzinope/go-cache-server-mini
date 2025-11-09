@@ -21,13 +21,6 @@ func (h *GetHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
-	// Check if the key exists in the cache
-	if !h.Cache.Exists(req.Key) {
-		fmt.Println("Error getting cache:", internal.ErrNotFound.Error())
-		c.JSON(http.StatusNotFound, gin.H{"error": internal.ErrNotFound.Error()})
-		return
-	}
-
 	value, ok := h.Cache.Get(req.Key)
 	if !ok {
 		fmt.Println("Error getting cache:", internal.ErrNotFound.Error())

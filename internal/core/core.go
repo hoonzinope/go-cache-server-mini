@@ -1,6 +1,7 @@
 package core
 
 import (
+	"go-cache-server-mini/internal"
 	"sync"
 	"time"
 )
@@ -33,8 +34,11 @@ func (c *Cache) Set(key string, value []byte, expiration time.Duration) error {
 	}
 
 	c.KExpired.Store(key, time.Now().Add(expiration))
+	if timer, exists := c.KTimers.Load(key); exists {
+		timer.(*time.Timer).Stop()
+	}
 	c.KTimers.Store(key, time.AfterFunc(expiration, func() {
-		c.KVMap.Delete(key)
+		c.Del(key)
 	}))
 	return nil
 }
@@ -50,9 +54,8 @@ func (c *Cache) Get(key string) ([]byte, bool) {
 func (c *Cache) Del(key string) error {
 	c.KVMap.Delete(key)
 	c.KExpired.Delete(key)
-	if timer, exists := c.KTimers.Load(key); exists {
+	if timer, exists := c.KTimers.LoadAndDelete(key); exists {
 		timer.(*time.Timer).Stop()
-		c.KTimers.Delete(key)
 	}
 	return nil
 }
@@ -72,6 +75,12 @@ func (c *Cache) Keys() []string {
 }
 
 func (c *Cache) Flush() error {
+	c.KTimers.Range(func(key, value any) bool {
+		if timer, ok := value.(*time.Timer); ok {
+			timer.Stop()
+		}
+		return true
+	})
 	c.KVMap = &sync.Map{}
 	c.KExpired = &sync.Map{}
 	c.KTimers = &sync.Map{}
@@ -93,7 +102,7 @@ func (c *Cache) TTL(key string) (time.Duration, bool) {
 func (c *Cache) Expire(key string, expiration time.Duration) error {
 	_, ok := c.KVMap.Load(key)
 	if !ok {
-		return nil // key does not exist
+		return internal.ErrNotFound
 	}
 
 	if expiration <= 0 {
@@ -107,7 +116,7 @@ func (c *Cache) Expire(key string, expiration time.Duration) error {
 		timer.(*time.Timer).Stop()
 	}
 	c.KTimers.Store(key, time.AfterFunc(expiration, func() {
-		c.KVMap.Delete(key)
+		c.Del(key)
 	}))
 	return nil
 }
