@@ -19,13 +19,6 @@ func (h *DelHandler) Del(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
-
-	// Check if the key exists in the cache
-	if !h.Cache.Exists(req.Key) {
-		c.JSON(http.StatusNotFound, gin.H{"error": internal.ErrNotFound.Error()})
-		return
-	}
-
 	delErr := h.Cache.Del(req.Key)
 	if delErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": internal.ErrServer.Error()})

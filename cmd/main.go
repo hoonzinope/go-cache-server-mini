@@ -22,9 +22,8 @@ func start() {
 	config, configLoadErr := config.LoadConfig()
 	if configLoadErr != nil {
 		log.Fatalf("Failed to load config: %v", configLoadErr)
-		return
 	}
-	cache := core.NewCache(config.TTL.Default, config.TTL.Max)
+	cache := core.NewCache(ctx, config.TTL.Default, config.TTL.Max)
 	wg := sync.WaitGroup{}
 	if config.HTTP.Enabled {
 		wg.Add(1)

@@ -11,8 +11,9 @@ import (
 )
 
 type APIServer struct {
-	Addr  string
-	cache core.CacheInterface
+	Addr      string
+	httpSever *http.Server
+	cache     core.CacheInterface
 }
 
 func StartAPIServer(ctx context.Context, addr string, cache core.CacheInterface) {
@@ -22,12 +23,18 @@ func StartAPIServer(ctx context.Context, addr string, cache core.CacheInterface)
 		cache: cache,
 	}
 
+	httpServer := &http.Server{
+		Addr:    server.Addr,
+		Handler: server.router(),
+	}
+	server.httpSever = httpServer
+
 	go func() {
 		<-ctx.Done()
 		server.Stop()
 	}()
 
-	err := http.ListenAndServe(server.Addr, server.router())
+	err := httpServer.ListenAndServe()
 	if err != nil {
 		fmt.Printf("Failed to start API server: %v\n", err)
 	}
@@ -36,6 +43,7 @@ func StartAPIServer(ctx context.Context, addr string, cache core.CacheInterface)
 func (server *APIServer) Stop() {
 	// Implementation for stopping the API server goes here
 	fmt.Println("Stopping API server...")
+	server.httpSever.Shutdown(context.Background())
 }
 
 func (server *APIServer) router() *gin.Engine {
