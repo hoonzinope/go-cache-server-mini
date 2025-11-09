@@ -23,7 +23,7 @@ func (h *GetHandler) Get(c *gin.Context) {
 	}
 	value, ok := h.Cache.Get(req.Key)
 	if !ok {
-		log.Printf("Error getting cache: %v", internal.ErrNotFound.Error())
+		log.Printf("Error getting cache : %v for key: %s", internal.ErrNotFound.Error(), req.Key)
 		c.JSON(http.StatusNotFound, gin.H{"error": internal.ErrNotFound.Error()})
 		return
 	}

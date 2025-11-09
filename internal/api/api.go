@@ -6,6 +6,7 @@ import (
 	"go-cache-server-mini/internal/api/handler"
 	"go-cache-server-mini/internal/core"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -35,19 +36,25 @@ func StartAPIServer(ctx context.Context, addr string, cache core.CacheInterface)
 	}()
 
 	err := httpServer.ListenAndServe()
-	if err != nil {
+	if err != nil && err != http.ErrServerClosed {
 		fmt.Printf("Failed to start API server: %v\n", err)
 	}
 }
 
 func (server *APIServer) Stop() {
 	// Implementation for stopping the API server goes here
-	fmt.Println("Stopping API server...")
-	server.httpSever.Shutdown(context.Background())
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := server.httpSever.Shutdown(shutdownCtx); err != nil {
+		fmt.Printf("API server shutdown error: %v\n", err)
+	} else {
+		fmt.Println("API server stopped gracefully.")
+	}
 }
 
 func (server *APIServer) router() *gin.Engine {
-	r := gin.Default()
+	r := gin.New()
+	// Middleware
 	r.Use(gin.Recovery())
 	r.Use(gin.Logger())
 	// Ping route for health check

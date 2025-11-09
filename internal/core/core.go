@@ -7,10 +7,13 @@ import (
 	"time"
 )
 
+type cacheItem struct {
+	value      []byte
+	expiration time.Time
+}
+
 type Cache struct {
 	KVMap      *sync.Map
-	KExpired   *sync.Map
-	FlushMutex sync.Mutex
 	defaultTTL int64
 	maxTTL     int64
 }
@@ -18,7 +21,6 @@ type Cache struct {
 func NewCache(ctx context.Context, defaultTTL, maxTTL int64) *Cache {
 	cache := &Cache{
 		KVMap:      &sync.Map{},
-		KExpired:   &sync.Map{},
 		defaultTTL: defaultTTL,
 		maxTTL:     maxTTL,
 	}
@@ -35,8 +37,8 @@ func (c *Cache) expireWorker(ctx context.Context) {
 			return
 		case <-ticker.C:
 			now := time.Now()
-			c.KExpired.Range(func(key, value any) bool {
-				if now.After(value.(time.Time)) {
+			c.KVMap.Range(func(key, value any) bool {
+				if now.After(value.(cacheItem).expiration) {
 					c.Del(key.(string))
 				}
 				return true
@@ -46,49 +48,47 @@ func (c *Cache) expireWorker(ctx context.Context) {
 }
 
 func (c *Cache) Set(key string, value []byte, expiration time.Duration) error {
-	c.KVMap.Store(key, value)
 	expiration = setExpiration(c.defaultTTL, c.maxTTL, int64(expiration.Seconds()))
-	c.KExpired.Store(key, time.Now().Add(expiration))
+	c.KVMap.Store(key, cacheItem{
+		value:      value,
+		expiration: time.Now().Add(expiration),
+	})
 	return nil
 }
 
 func (c *Cache) Get(key string) ([]byte, bool) {
-	value, ok := c.KVMap.Load(key)
-	if !ok {
-		return nil, false
-	}
-	if exp, exists := c.KExpired.Load(key); exists {
-		if time.Now().After(exp.(time.Time)) {
+	item, exists := c.KVMap.Load(key)
+	if exists {
+		if time.Now().After(item.(cacheItem).expiration) {
 			c.Del(key)
 			return nil, false
 		}
+		return item.(cacheItem).value, true
 	}
-	return value.([]byte), true
+	return nil, false
 }
 
 func (c *Cache) Del(key string) error {
 	c.KVMap.Delete(key)
-	c.KExpired.Delete(key)
 	return nil
 }
 
 func (c *Cache) Exists(key string) bool {
-	if exp, exists := c.KExpired.Load(key); exists {
-		if time.Now().After(exp.(time.Time)) {
+	item, exists := c.KVMap.Load(key)
+	if exists {
+		if time.Now().After(item.(cacheItem).expiration) {
 			c.Del(key)
 			return false
-		} else {
-			return true
 		}
-	} else {
-		return false
+		return true
 	}
+	return false
 }
 
 func (c *Cache) Keys() []string {
 	var keys []string
-	c.KExpired.Range(func(key, value any) bool {
-		if time.Now().Before(value.(time.Time)) {
+	c.KVMap.Range(func(key, value any) bool {
+		if time.Now().Before(value.(cacheItem).expiration) {
 			keys = append(keys, key.(string))
 		} else {
 			c.Del(key.(string))
@@ -99,32 +99,41 @@ func (c *Cache) Keys() []string {
 }
 
 func (c *Cache) Flush() error {
-	c.FlushMutex.Lock()
-	defer c.FlushMutex.Unlock()
-	c.KVMap = &sync.Map{}
-	c.KExpired = &sync.Map{}
+	c.KVMap.Range(func(key, value any) bool {
+		c.KVMap.Delete(key)
+		return true
+	})
 	return nil
 }
 
 func (c *Cache) TTL(key string) (time.Duration, bool) {
-	expiration, ok := c.KExpired.Load(key)
-	if !ok {
+	item, exists := c.KVMap.Load(key)
+	if !exists {
 		return 0, false
 	}
-	remaining := time.Until(expiration.(time.Time))
-	if remaining < 0 {
+	remaining := time.Until(item.(cacheItem).expiration)
+	if remaining <= 0 {
+		c.Del(key)
 		return 0, false
 	}
 	return remaining, true
 }
 
 func (c *Cache) Expire(key string, expiration time.Duration) error {
-	_, ok := c.KVMap.Load(key)
-	if !ok {
+	if expiration <= 0 {
+		c.Del(key)
+		return nil
+	}
+
+	expiration = setExpiration(c.defaultTTL, c.maxTTL, int64(expiration.Seconds()))
+	item, exists := c.KVMap.Load(key)
+	if !exists {
 		return internal.ErrNotFound
 	}
-	expiration = setExpiration(c.defaultTTL, c.maxTTL, int64(expiration.Seconds()))
-	c.KExpired.Store(key, time.Now().Add(expiration))
+	c.KVMap.Store(key, cacheItem{
+		value:      item.(cacheItem).value,
+		expiration: time.Now().Add(expiration),
+	})
 	return nil
 }
 

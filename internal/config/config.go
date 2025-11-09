@@ -23,8 +23,8 @@ type Config struct {
 	} `yaml:"http"`
 }
 
-func LoadConfig() (*Config, error) {
-	yamlFile, err := os.ReadFile("config.yml")
+func LoadConfig(configFilePath string) (*Config, error) {
+	yamlFile, err := os.ReadFile(configFilePath)
 	if err != nil {
 		return nil, err
 	}

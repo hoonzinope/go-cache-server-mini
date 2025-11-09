@@ -7,24 +7,30 @@ import (
 	"go-cache-server-mini/internal/config"
 	"go-cache-server-mini/internal/core"
 	"log"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 )
 
 var ctx, cancel = context.WithCancel(context.Background())
+var wg = sync.WaitGroup{}
 
 func main() {
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 	start()
-	defer stop()
+	<-signalChan
+	stop()
 }
 
 func start() {
 	// Start the API server
-	config, configLoadErr := config.LoadConfig()
+	config, configLoadErr := config.LoadConfig("config.yml")
 	if configLoadErr != nil {
 		log.Fatalf("Failed to load config: %v", configLoadErr)
 	}
 	cache := core.NewCache(ctx, config.TTL.Default, config.TTL.Max)
-	wg := sync.WaitGroup{}
 	if config.HTTP.Enabled {
 		wg.Add(1)
 		go func() {
@@ -34,11 +40,11 @@ func start() {
 			api.StartAPIServer(ctx, addr, cache)
 		}()
 	}
-	wg.Wait()
 }
 
 func stop() {
 	// Stop the API server
-	fmt.Println("Stopping API server")
 	cancel()
+	fmt.Println("Stop signal received, shutting down...")
+	wg.Wait()
 }

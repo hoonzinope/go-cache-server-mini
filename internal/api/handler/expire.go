@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"go-cache-server-mini/internal"
 	"go-cache-server-mini/internal/api/dto"
 	"go-cache-server-mini/internal/core"
@@ -22,6 +23,10 @@ func (h *ExpireHandler) Expire(c *gin.Context) {
 	}
 	expireErr := h.Cache.Expire(expireReq.Key, time.Duration(expireReq.TTL)*time.Second)
 	if expireErr != nil {
+		if errors.Is(expireErr, internal.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": internal.ErrNotFound.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": internal.ErrServer.Error()})
 		return
 	}
