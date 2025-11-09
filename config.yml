@@ -1,0 +1,10 @@
+persistent:
+  type: memory
+
+ttl:
+  default: 86400  # default TTL in seconds (1 day)
+  max: 604800     # maximum TTL in seconds (7 days)
+
+http:
+  enabled: true
+  address: ":8080"
