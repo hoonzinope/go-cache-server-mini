@@ -130,7 +130,7 @@ func (c *Cache) Expire(key string, expiration time.Duration) error {
 
 func setExpiration(defaultTTL, maxTTL int64, reqTTL int64) time.Duration {
 	var ttl int64
-	if reqTTL < 0 {
+	if reqTTL <= 0 {
 		ttl = defaultTTL
 	} else if reqTTL > maxTTL {
 		ttl = maxTTL
