@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go-cache-server-mini/internal/api/handler"
 	"go-cache-server-mini/internal/core"
@@ -17,7 +18,7 @@ type APIServer struct {
 	cache     core.CacheInterface
 }
 
-func StartAPIServer(ctx context.Context, addr string, cache core.CacheInterface) {
+func StartAPIServer(ctx context.Context, addr string, cache core.CacheInterface) error {
 	// Implementation for starting the API server goes here
 	server := APIServer{
 		Addr:  addr,
@@ -35,10 +36,15 @@ func StartAPIServer(ctx context.Context, addr string, cache core.CacheInterface)
 		server.Stop()
 	}()
 
+	fmt.Printf("Starting API server at %s\n", server.Addr)
 	err := httpServer.ListenAndServe()
-	if err != nil && err != http.ErrServerClosed {
-		fmt.Printf("Failed to start API server: %v\n", err)
+	if err != nil {
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return fmt.Errorf("failed to start API server: %w", err)
 	}
+	return nil
 }
 
 func (server *APIServer) Stop() {

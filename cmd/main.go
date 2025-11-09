@@ -19,12 +19,28 @@ var wg = sync.WaitGroup{}
 func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-	start()
-	<-signalChan
+	defer signal.Stop(signalChan)
+
+	errChan := make(chan error, 1)
+
+	start(errChan)
+
+	var shutdownErr error
+	select {
+	case sig := <-signalChan:
+		fmt.Println("Received signal:", sig)
+	case err := <-errChan:
+		shutdownErr = err
+		log.Printf("API server exited with error: %v\n", err)
+	}
+
 	stop()
+	if shutdownErr != nil {
+		os.Exit(1)
+	}
 }
 
-func start() {
+func start(errChan chan<- error) {
 	// Start the API server
 	config, configLoadErr := config.LoadConfig("config.yml")
 	if configLoadErr != nil {
@@ -37,7 +53,9 @@ func start() {
 			defer wg.Done()
 			addr := config.HTTP.Address
 			fmt.Println("Starting API server on", addr)
-			api.StartAPIServer(ctx, addr, cache)
+			if err := api.StartAPIServer(ctx, addr, cache); err != nil {
+				errChan <- err
+			}
 		}()
 	}
 }
