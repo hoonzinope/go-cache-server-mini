@@ -9,20 +9,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type DelHandler struct {
+type GetSetHandler struct {
 	Cache core.CacheInterface
 }
 
-func (h *DelHandler) Del(c *gin.Context) {
-	var req dto.KeyRequest
-	if err := c.ShouldBindQuery(&req); err != nil {
+func (h *GetSetHandler) GetSet(c *gin.Context) {
+	var req dto.GetSetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
-	delErr := h.Cache.Del(req.Key)
-	if delErr != nil {
+	oldValue, getSetErr := h.Cache.GetSet(req.Key, req.Value)
+	if getSetErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": internal.ErrServer.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"status": "success"})
+	c.JSON(http.StatusOK, dto.ValueResponse{Value: oldValue})
 }

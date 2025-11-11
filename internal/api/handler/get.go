@@ -15,7 +15,7 @@ type GetHandler struct {
 }
 
 func (h *GetHandler) Get(c *gin.Context) {
-	var req dto.GetRequest
+	var req dto.KeyRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		log.Printf("Error binding query: %v", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
@@ -27,5 +27,5 @@ func (h *GetHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": internal.ErrNotFound.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, dto.GetResponse{Value: value})
+	c.JSON(http.StatusOK, dto.ValueResponse{Value: value})
 }

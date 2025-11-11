@@ -77,6 +77,14 @@ func (server *APIServer) router() *gin.Engine {
 	server.set(r)
 	server.del(r)
 	server.flush(r)
+	server.persist(r)
+	server.incr(r)
+	server.decr(r)
+	// extra
+	server.setNX(r)
+	server.getSet(r)
+	server.mGet(r)
+	server.mSet(r)
 	return r
 }
 
@@ -140,4 +148,53 @@ func (server *APIServer) ttl(r *gin.Engine) {
 		Cache: server.cache,
 	}
 	r.GET("/ttl", ttlHandler.TTL)
+}
+
+func (server *APIServer) persist(r *gin.Engine) {
+	persistHandler := handler.PersistHandler{
+		Cache: server.cache,
+	}
+	r.POST("/persist", persistHandler.Persist)
+}
+
+func (server *APIServer) incr(r *gin.Engine) {
+	incrHandler := handler.IncrHandler{
+		Cache: server.cache,
+	}
+	r.POST("/incr", incrHandler.Incr)
+}
+
+func (server *APIServer) decr(r *gin.Engine) {
+	decrHandler := handler.DecrHandler{
+		Cache: server.cache,
+	}
+	r.POST("/decr", decrHandler.Decr)
+}
+
+func (server *APIServer) setNX(r *gin.Engine) {
+	setNXHandler := handler.SetNXHandler{
+		Cache: server.cache,
+	}
+	r.POST("/setnx", setNXHandler.SetNX)
+}
+
+func (server *APIServer) getSet(r *gin.Engine) {
+	getSetHandler := handler.GetSetHandler{
+		Cache: server.cache,
+	}
+	r.POST("/getset", getSetHandler.GetSet)
+}
+
+func (server *APIServer) mGet(r *gin.Engine) {
+	mGetHandler := handler.MGetHandler{
+		Cache: server.cache,
+	}
+	r.POST("/mget", mGetHandler.MGet)
+}
+
+func (server *APIServer) mSet(r *gin.Engine) {
+	mSetHandler := handler.MSetHandler{
+		Cache: server.cache,
+	}
+	r.POST("/mset", mSetHandler.MSet)
 }
