@@ -14,7 +14,7 @@ type ExistsHandler struct {
 }
 
 func (h *ExistsHandler) Exists(c *gin.Context) {
-	var req dto.ExistsRequest
+	var req dto.KeyRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
