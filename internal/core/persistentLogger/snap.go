@@ -35,7 +35,7 @@ func NewSnap(snapDataChannel chan map[string]data.CacheItem, snapDoneChannel cha
 
 func (s *Snap) Load(data map[string]data.CacheItem) (map[string]data.CacheItem, error) {
 	// loading Snap data into cache
-	data, err := s.loadFromFile(s.SnapTempFile, data)
+	data, err := s.loadFromFile(s.SnapFile, data)
 	if err != nil {
 		return data, err
 	}
@@ -64,10 +64,11 @@ func (s *Snap) Save() error {
 	for data := range s.SnapDataChannel {
 		// Process the snapshot data
 		if len(data) == 0 {
-			// If no data, just create/truncate snap file
-			s.SnapFile.Write("")
+			// If no data, just truncate the snap file
+			s.SnapFile.Truncate()
 		} else {
 			// Write data to temp snap file
+			s.SnapTempFile.Truncate() // create/truncate temp file
 			for key, item := range data {
 				cmd, err := s.parser.ConvertCMDToString("SET", key, item)
 				if err != nil {

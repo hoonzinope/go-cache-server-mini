@@ -17,14 +17,16 @@ type Cache struct {
 	defaultTTL       int64
 	maxTTL           int64
 	persistentLogger *persistentLogger.PersistentLogger
+	persistentType   string
 }
 
 func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {
 
 	cache := &Cache{
-		KVMap:      make(map[string]data.CacheItem),
-		defaultTTL: config.TTL.Default,
-		maxTTL:     config.TTL.Max,
+		KVMap:          make(map[string]data.CacheItem),
+		defaultTTL:     config.TTL.Default,
+		maxTTL:         config.TTL.Max,
+		persistentType: config.Persistent.Type,
 	}
 
 	if config.Persistent.Type == "file" {
@@ -161,10 +163,7 @@ func (c *Cache) Expire(key string, expiration time.Duration) error {
 	if expiration <= 0 {
 		delete(c.KVMap, key)
 		// Write to AOF
-		c.persistentLogger.WriteAOF(persistentLogger.Command{
-			Action: "DEL",
-			Key:    key,
-		})
+		c.delItemLog(key)
 		return nil
 	}
 
@@ -328,18 +327,22 @@ func isExpired(item data.CacheItem) bool {
 }
 
 func (c *Cache) setItemLog(key string, item data.CacheItem) {
-	// Write to AOF
-	c.persistentLogger.WriteAOF(persistentLogger.Command{
-		Action: "SET",
-		Key:    key,
-		Item:   item,
-	})
+	if c.persistentType == "file" {
+		// Write to AOF
+		c.persistentLogger.WriteAOF(persistentLogger.Command{
+			Action: "SET",
+			Key:    key,
+			Item:   item,
+		})
+	}
 }
 
 func (c *Cache) delItemLog(key string) {
-	// Write to AOF
-	c.persistentLogger.WriteAOF(persistentLogger.Command{
-		Action: "DEL",
-		Key:    key,
-	})
+	if c.persistentType == "file" {
+		// Write to AOF
+		c.persistentLogger.WriteAOF(persistentLogger.Command{
+			Action: "DEL",
+			Key:    key,
+		})
+	}
 }

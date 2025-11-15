@@ -80,7 +80,7 @@ func (a *AOF) Save() error {
 			switch control {
 			case "PAUSE":
 				a.tempFileFlag = true
-				a.AofTempFile.Write("") // create/truncate temp file
+				a.AofTempFile.Truncate() // create/truncate temp file
 			case "RESUME":
 				util.SwitchFileUtil(a.AofTempFile, a.AofFile) // Switch temp file to main file & delete temp file
 				a.tempFileFlag = false

@@ -48,6 +48,21 @@ func (f *FileUtil) Write(line string) error {
 	return nil
 }
 
+func (f *FileUtil) Truncate() error {
+	f.createIfNotExists()
+	// close file if already opened
+	if f.file != nil {
+		f.file.Close()
+		f.file = nil
+	}
+	// truncate file
+	err := os.Truncate(f.filePath, 0)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (f *FileUtil) Load() (lines []string, err error) {
 	// read all lines from file
 	file, err := os.Open(f.filePath)
