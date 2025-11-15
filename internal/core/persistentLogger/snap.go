@@ -89,11 +89,17 @@ func (s *Snap) Save() error {
 	// Placeholder for saving Snap data from cache
 	for data := range s.SnapDataChannel {
 		// Process the snapshot data
-		for key, item := range data {
-			cmd := s.parser.ConvertCMDToString("SET", key, item)
-			s.SnapTempFile.Write(cmd)
+		if len(data) == 0 {
+			// If no data, just create/truncate snap file
+			s.SnapFile.Write("")
+		} else {
+			// Write data to temp snap file
+			for key, item := range data {
+				cmd := s.parser.ConvertCMDToString("SET", key, item)
+				s.SnapTempFile.Write(cmd)
+			}
+			util.SwitchFileUtil(s.SnapTempFile, s.SnapFile) // Switch temp file to main file & delete temp file
 		}
-		util.SwitchFileUtil(s.SnapTempFile, s.SnapFile) // Switch temp file to main file & delete temp file
 		s.SnapDoneChannel <- true
 	}
 	return nil

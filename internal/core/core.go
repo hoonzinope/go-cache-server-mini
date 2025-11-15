@@ -28,6 +28,7 @@ func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {
 		persistentLogger: persistentLogger.NewPersistentLogger(ctx, config),
 	}
 	if err := cache.Load(); err != nil { // load existing data from SNAP/AOF files
+		cache.persistentLogger.Close()
 		return nil, err
 	}
 	go cache.daemon(ctx)
