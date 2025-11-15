@@ -2,6 +2,7 @@ package util
 
 import (
 	"bufio"
+	"errors"
 	"os"
 )
 
@@ -17,7 +18,6 @@ func NewFileUtil(folderPath, filePath string) *FileUtil {
 		folderPath: folderPath,
 		filePath:   filePath,
 	}
-	fileUtil.createIfNotExists() // create folder and file if not exists
 	return fileUtil
 }
 
@@ -52,6 +52,9 @@ func (f *FileUtil) Load() (lines []string, err error) {
 	// read all lines from file
 	file, err := os.Open(f.filePath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return []string{}, nil // return empty slice if file does not exist
+		}
 		return nil, err
 	}
 	defer file.Close()
@@ -69,8 +72,8 @@ func (f *FileUtil) Load() (lines []string, err error) {
 
 func (f *FileUtil) createIfNotExists() error {
 	// check folder path
-	info, err := os.Stat(f.folderPath)
-	if os.IsNotExist(err) || !info.IsDir() {
+	_, err := os.Stat(f.folderPath)
+	if os.IsNotExist(err) {
 		err := os.MkdirAll(f.folderPath, os.ModePerm)
 		if err != nil {
 			return err

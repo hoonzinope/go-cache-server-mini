@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Persistent struct {
 		Type string `yaml:"type"`
+		Path string `yaml:"path"`
 	} `yaml:"persistent"`
 
 	TTL struct {
@@ -37,4 +38,30 @@ func LoadConfig(configFilePath string) (*Config, error) {
 		return nil, fmt.Errorf("error unmarshalling config file: %w", err)
 	}
 	return &config, nil
+}
+
+func LoadTestConfig() *Config {
+	return &Config{
+		Persistent: struct {
+			Type string "yaml:\"type\""
+			Path string "yaml:\"path\""
+		}{
+			Type: "aof",
+			Path: "./persistent_data/",
+		},
+		TTL: struct {
+			Default int64 "yaml:\"default\""
+			Max     int64 "yaml:\"max\""
+		}{
+			Default: 86400,
+			Max:     604800,
+		},
+		HTTP: struct {
+			Enabled bool   "yaml:\"enabled\""
+			Address string "yaml:\"address\""
+		}{
+			Enabled: true,
+			Address: ":8080",
+		},
+	}
 }

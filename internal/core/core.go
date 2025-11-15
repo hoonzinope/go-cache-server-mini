@@ -3,40 +3,52 @@ package core
 import (
 	"context"
 	"go-cache-server-mini/internal"
+	"go-cache-server-mini/internal/config"
+	"go-cache-server-mini/internal/core/data"
+	"go-cache-server-mini/internal/core/persistentLogger"
 	"go-cache-server-mini/internal/util"
 	"sync"
 	"time"
 )
 
-type cacheItem struct {
-	value      []byte
-	expiration time.Time
-	persistent bool
-}
-
 type Cache struct {
-	Lock       sync.RWMutex
-	KVMap      map[string]cacheItem
-	defaultTTL int64
-	maxTTL     int64
+	Lock             sync.RWMutex
+	KVMap            map[string]data.CacheItem
+	defaultTTL       int64
+	maxTTL           int64
+	persistentLogger *persistentLogger.PersistentLogger
 }
 
-func NewCache(ctx context.Context, defaultTTL, maxTTL int64) *Cache {
+func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {
+
 	cache := &Cache{
-		KVMap:      make(map[string]cacheItem),
-		defaultTTL: defaultTTL,
-		maxTTL:     maxTTL,
+		KVMap:            make(map[string]data.CacheItem),
+		defaultTTL:       config.TTL.Default,
+		maxTTL:           config.TTL.Max,
+		persistentLogger: persistentLogger.NewPersistentLogger(ctx, config),
 	}
-	go cache.expireWorker(ctx)
-	return cache
+	if err := cache.Load(); err != nil { // load existing data from SNAP/AOF files
+		return nil, err
+	}
+	go cache.daemon(ctx)
+	return cache, nil
 }
 
-func (c *Cache) expireWorker(ctx context.Context) {
+func (c *Cache) Load() error {
+	var loadErr error
+	c.KVMap, loadErr = c.persistentLogger.Load(c.KVMap)
+	return loadErr
+}
+
+func (c *Cache) daemon(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
+	snapTicker := time.NewTicker(60 * time.Second)
 	for {
 		select {
 		case <-ctx.Done():
 			ticker.Stop()
+			snapTicker.Stop()
+			c.persistentLogger.Close()
 			return
 		case <-ticker.C:
 			c.Lock.Lock()
@@ -46,6 +58,8 @@ func (c *Cache) expireWorker(ctx context.Context) {
 				}
 			}
 			c.Lock.Unlock()
+		case <-snapTicker.C: // trigger snapshot every 60 seconds
+			c.persistentLogger.TriggerSnap(c.KVMap, &c.Lock)
 		}
 	}
 }
@@ -54,11 +68,17 @@ func (c *Cache) Set(key string, value []byte, expiration time.Duration) error {
 	c.Lock.Lock()
 	defer c.Lock.Unlock()
 	expiration, persistent := util.SetExpiration(c.defaultTTL, c.maxTTL, int64(expiration.Seconds()))
-	c.KVMap[key] = cacheItem{
-		value:      value,
-		expiration: time.Now().Add(expiration),
-		persistent: persistent,
+	c.KVMap[key] = data.CacheItem{
+		Value:      value,
+		Expiration: time.Now().Add(expiration),
+		Persistent: persistent,
 	}
+	// Write to AOF
+	c.persistentLogger.WriteAOF(persistentLogger.Command{
+		Action: "SET",
+		Key:    key,
+		Item:   c.KVMap[key],
+	})
 	return nil
 }
 
@@ -70,7 +90,7 @@ func (c *Cache) Get(key string) ([]byte, bool) {
 		if isExpired(item) {
 			return nil, false
 		}
-		return item.value, true
+		return item.Value, true
 	}
 	return nil, false
 }
@@ -79,6 +99,11 @@ func (c *Cache) Del(key string) error {
 	c.Lock.Lock()
 	defer c.Lock.Unlock()
 	delete(c.KVMap, key)
+	// Write to AOF
+	c.persistentLogger.WriteAOF(persistentLogger.Command{
+		Action: "DEL",
+		Key:    key,
+	})
 	return nil
 }
 
@@ -107,7 +132,14 @@ func (c *Cache) Keys() []string {
 func (c *Cache) Flush() error {
 	c.Lock.Lock()
 	defer c.Lock.Unlock()
-	c.KVMap = make(map[string]cacheItem)
+	// Write to AOF
+	for key := range c.KVMap {
+		c.persistentLogger.WriteAOF(persistentLogger.Command{
+			Action: "DEL",
+			Key:    key,
+		})
+	}
+	c.KVMap = make(map[string]data.CacheItem)
 	return nil
 }
 
@@ -118,10 +150,10 @@ func (c *Cache) TTL(key string) (time.Duration, bool) {
 	if !exists {
 		return 0, false
 	}
-	if item.persistent {
+	if item.Persistent {
 		return -1, true
 	}
-	remaining := time.Until(item.expiration)
+	remaining := time.Until(item.Expiration)
 	if remaining <= 0 {
 		return 0, false
 	}
@@ -133,6 +165,11 @@ func (c *Cache) Expire(key string, expiration time.Duration) error {
 	defer c.Lock.Unlock()
 	if expiration <= 0 {
 		delete(c.KVMap, key)
+		// Write to AOF
+		c.persistentLogger.WriteAOF(persistentLogger.Command{
+			Action: "DEL",
+			Key:    key,
+		})
 		return nil
 	}
 
@@ -144,48 +181,64 @@ func (c *Cache) Expire(key string, expiration time.Duration) error {
 	if isExpired(item) {
 		return internal.ErrNotFound
 	}
-	c.KVMap[key] = cacheItem{
-		value:      item.value,
-		expiration: time.Now().Add(expiration),
-		persistent: persistent,
+	c.KVMap[key] = data.CacheItem{
+		Value:      item.Value,
+		Expiration: time.Now().Add(expiration),
+		Persistent: persistent,
 	}
+	// Write to AOF
+	c.persistentLogger.WriteAOF(persistentLogger.Command{
+		Action: "SET",
+		Key:    key,
+		Item:   c.KVMap[key],
+	})
 	return nil
 }
 
 func (c *Cache) Persist(key string) error {
 	c.Lock.Lock()
 	defer c.Lock.Unlock()
-
 	item, exists := c.KVMap[key]
 	if !exists || isExpired(item) {
 		return internal.ErrNotFound
 	}
-	c.KVMap[key] = cacheItem{
-		value:      item.value,
-		expiration: time.Time{},
-		persistent: true,
+	c.KVMap[key] = data.CacheItem{
+		Value:      item.Value,
+		Expiration: time.Time{},
+		Persistent: true,
 	}
+	// Write to AOF
+	c.persistentLogger.WriteAOF(persistentLogger.Command{
+		Action: "SET",
+		Key:    key,
+		Item:   c.KVMap[key],
+	})
 	return nil
 }
 
 func (c *Cache) Incr(key string) (int64, error) {
 	c.Lock.Lock()
 	defer c.Lock.Unlock()
-
 	item, exists := c.KVMap[key]
 	if !exists || isExpired(item) {
 		return 0, internal.ErrNotFound
 	}
-	value, err := util.BytesToInt64(item.value)
+	value, err := util.BytesToInt64(item.Value)
 	if err != nil {
 		return 0, err
 	}
 	value++
-	c.KVMap[key] = cacheItem{
-		value:      util.Int64ToBytes(value),
-		expiration: item.expiration,
-		persistent: item.persistent,
+	c.KVMap[key] = data.CacheItem{
+		Value:      util.Int64ToBytes(value),
+		Expiration: item.Expiration,
+		Persistent: item.Persistent,
 	}
+	// Write to AOF
+	c.persistentLogger.WriteAOF(persistentLogger.Command{
+		Action: "SET",
+		Key:    key,
+		Item:   c.KVMap[key],
+	})
 	return value, nil
 }
 
@@ -196,16 +249,22 @@ func (c *Cache) Decr(key string) (int64, error) {
 	if !exists || isExpired(item) {
 		return 0, internal.ErrNotFound
 	}
-	value, err := util.BytesToInt64(item.value)
+	value, err := util.BytesToInt64(item.Value)
 	if err != nil {
 		return 0, err
 	}
 	value--
-	c.KVMap[key] = cacheItem{
-		value:      util.Int64ToBytes(value),
-		expiration: item.expiration,
-		persistent: item.persistent,
+	c.KVMap[key] = data.CacheItem{
+		Value:      util.Int64ToBytes(value),
+		Expiration: item.Expiration,
+		Persistent: item.Persistent,
 	}
+	// Write to AOF
+	c.persistentLogger.WriteAOF(persistentLogger.Command{
+		Action: "SET",
+		Key:    key,
+		Item:   c.KVMap[key],
+	})
 	return value, nil
 }
 
@@ -217,11 +276,17 @@ func (c *Cache) SetNX(key string, value []byte, expiration time.Duration) (bool,
 		return false, nil
 	}
 	expiration, persistent := util.SetExpiration(c.defaultTTL, c.maxTTL, int64(expiration.Seconds()))
-	c.KVMap[key] = cacheItem{
-		value:      value,
-		expiration: time.Now().Add(expiration),
-		persistent: persistent,
+	c.KVMap[key] = data.CacheItem{
+		Value:      value,
+		Expiration: time.Now().Add(expiration),
+		Persistent: persistent,
 	}
+	// Write to AOF
+	c.persistentLogger.WriteAOF(persistentLogger.Command{
+		Action: "SET",
+		Key:    key,
+		Item:   c.KVMap[key],
+	})
 	return true, nil
 }
 
@@ -233,15 +298,21 @@ func (c *Cache) GetSet(key string, value []byte) ([]byte, error) {
 	var expiration time.Time = time.Now().Add(time.Duration(c.defaultTTL) * time.Second)
 	var persistent bool = false
 	if exists && !isExpired(item) {
-		oldValue = item.value
-		persistent = item.persistent
-		expiration = item.expiration
+		oldValue = item.Value
+		persistent = item.Persistent
+		expiration = item.Expiration
 	}
-	c.KVMap[key] = cacheItem{
-		value:      value,
-		expiration: expiration,
-		persistent: persistent,
+	c.KVMap[key] = data.CacheItem{
+		Value:      value,
+		Expiration: expiration,
+		Persistent: persistent,
 	}
+	// Write to AOF
+	c.persistentLogger.WriteAOF(persistentLogger.Command{
+		Action: "SET",
+		Key:    key,
+		Item:   c.KVMap[key],
+	})
 	return oldValue, nil
 }
 
@@ -255,7 +326,7 @@ func (c *Cache) MGet(keys []string) map[string][]byte {
 			if isExpired(item) {
 				continue
 			}
-			result[key] = item.value
+			result[key] = item.Value
 		}
 	}
 	return result
@@ -265,18 +336,31 @@ func (c *Cache) MSet(kv map[string][]byte, expiration time.Duration) error {
 	c.Lock.Lock()
 	defer c.Lock.Unlock()
 	expiration, persistent := util.SetExpiration(c.defaultTTL, c.maxTTL, int64(expiration.Seconds()))
+	expirationTime := time.Now().Add(expiration)
 	for key, value := range kv {
-		c.KVMap[key] = cacheItem{
-			value:      value,
-			expiration: time.Now().Add(expiration),
-			persistent: persistent,
+		c.KVMap[key] = data.CacheItem{
+			Value:      value,
+			Expiration: expirationTime,
+			Persistent: persistent,
 		}
+	}
+	// Write to AOF
+	for key, value := range kv {
+		c.persistentLogger.WriteAOF(persistentLogger.Command{
+			Action: "SET",
+			Key:    key,
+			Item: data.CacheItem{
+				Value:      value,
+				Expiration: expirationTime,
+				Persistent: persistent,
+			},
+		})
 	}
 	return nil
 }
 
-func isExpired(item cacheItem) bool {
-	if time.Now().After(item.expiration) && !item.persistent {
+func isExpired(item data.CacheItem) bool {
+	if time.Now().After(item.Expiration) && !item.Persistent {
 		return true
 	}
 	return false

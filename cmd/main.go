@@ -46,7 +46,11 @@ func start(errChan chan<- error) {
 	if configLoadErr != nil {
 		log.Fatalf("Failed to load config: %v", configLoadErr)
 	}
-	cache := core.NewCache(ctx, config.TTL.Default, config.TTL.Max)
+	cache, createCacheErr := core.NewCache(ctx, config)
+	if createCacheErr != nil {
+		log.Fatalf("Failed to create cache: %v", createCacheErr)
+	}
+	// Start the API server
 	if config.HTTP.Enabled {
 		wg.Add(1)
 		go func() {

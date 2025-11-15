@@ -1,5 +1,6 @@
 persistent:
   type: memory
+  path: "./persistent_data/"
 
 ttl:
   default: 86400  # default TTL in seconds (1 day)

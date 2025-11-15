@@ -2,17 +2,27 @@ package core
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
 	"go-cache-server-mini/internal"
+	"go-cache-server-mini/internal/config"
 )
 
 func newTestCache(t *testing.T) *Cache {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	return NewCache(ctx, 10, 60)
+	config := config.LoadTestConfig()
+	t.Cleanup(func() {
+		os.RemoveAll(config.Persistent.Path)
+		cancel()
+	})
+	cache, err := NewCache(ctx, config)
+	if err != nil {
+		t.Fatalf("Failed to create cache: %v", err)
+	}
+	return cache
 }
 
 func TestCacheBasicOperations(t *testing.T) {

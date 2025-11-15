@@ -22,9 +22,7 @@ func (h *SetHandler) Set(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
-	if req.TTL < 0 {
-		req.TTL = 0
-	}
+
 	ttl := time.Duration(req.TTL) * time.Second
 	setErr := h.Cache.Set(req.Key, req.Value, ttl)
 	if setErr != nil {
