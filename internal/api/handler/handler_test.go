@@ -7,12 +7,14 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"go-cache-server-mini/internal/config"
 	"go-cache-server-mini/internal/core"
 )
 
@@ -23,8 +25,16 @@ func init() {
 func newHandlerTestCache(t *testing.T) core.CacheInterface {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	return core.NewCache(ctx, 10, 60)
+	config := config.LoadTestConfig()
+	t.Cleanup(func() {
+		os.RemoveAll(config.Persistent.Path)
+		cancel()
+	})
+	core, err := core.NewCache(ctx, config)
+	if err != nil {
+		t.Fatalf("Failed to create cache: %v", err)
+	}
+	return core
 }
 
 func newTestContext(method, target string, body []byte) (*gin.Context, *httptest.ResponseRecorder) {
