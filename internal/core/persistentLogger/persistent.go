@@ -29,9 +29,9 @@ type PersistentLogger struct {
 	snapLogger *Snap
 	parser     *Parser
 	cacheChan  cacheChannel
-	closeOnce  sync.Once
-	closed     int32
-	ops        sync.WaitGroup
+	closeOnce  sync.Once      // to ensure Close is only called once
+	closed     int32          // atomic flag to indicate if closed
+	ops        sync.WaitGroup // to track ongoing operations
 }
 
 func NewPersistentLogger(ctx context.Context, config *config.Config) *PersistentLogger {
@@ -56,6 +56,7 @@ func NewPersistentLogger(ctx context.Context, config *config.Config) *Persistent
 	return persistentLogger
 }
 
+// Close gracefully shuts down the PersistentLogger, ensuring all pending operations are completed.
 func (p *PersistentLogger) Close() {
 	p.closeOnce.Do(func() {
 		atomic.StoreInt32(&p.closed, 1)
@@ -92,7 +93,10 @@ func (p *PersistentLogger) WriteAOF(command Command) {
 	p.ops.Add(1)
 	defer p.ops.Done()
 
-	cmd := p.parser.ConvertCMDToString(command.Action, command.Key, command.Item)
+	cmd, err := p.parser.ConvertCMDToString(command.Action, command.Key, command.Item)
+	if err != nil {
+		return
+	}
 	select {
 	case <-p.ctx.Done():
 		return

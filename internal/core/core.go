@@ -22,16 +22,19 @@ type Cache struct {
 func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {
 
 	cache := &Cache{
-		KVMap:            make(map[string]data.CacheItem),
-		defaultTTL:       config.TTL.Default,
-		maxTTL:           config.TTL.Max,
-		persistentLogger: persistentLogger.NewPersistentLogger(ctx, config),
+		KVMap:      make(map[string]data.CacheItem),
+		defaultTTL: config.TTL.Default,
+		maxTTL:     config.TTL.Max,
 	}
-	if err := cache.Load(); err != nil { // load existing data from SNAP/AOF files
-		cache.persistentLogger.Close()
-		return nil, err
+
+	if config.Persistent.Type == "file" {
+		cache.persistentLogger = persistentLogger.NewPersistentLogger(ctx, config)
+		if err := cache.Load(); err != nil { // load existing data from SNAP/AOF files
+			cache.persistentLogger.Close()
+			return nil, err
+		}
+		go cache.daemon(ctx)
 	}
-	go cache.daemon(ctx)
 	return cache, nil
 }
 
@@ -56,6 +59,7 @@ func (c *Cache) daemon(ctx context.Context) {
 			for key, item := range c.KVMap {
 				if isExpired(item) {
 					delete(c.KVMap, key)
+					c.delItemLog(key)
 				}
 			}
 			c.Lock.Unlock()
@@ -75,11 +79,7 @@ func (c *Cache) Set(key string, value []byte, expiration time.Duration) error {
 		Persistent: persistent,
 	}
 	// Write to AOF
-	c.persistentLogger.WriteAOF(persistentLogger.Command{
-		Action: "SET",
-		Key:    key,
-		Item:   c.KVMap[key],
-	})
+	c.setItemLog(key, c.KVMap[key])
 	return nil
 }
 
@@ -101,10 +101,7 @@ func (c *Cache) Del(key string) error {
 	defer c.Lock.Unlock()
 	delete(c.KVMap, key)
 	// Write to AOF
-	c.persistentLogger.WriteAOF(persistentLogger.Command{
-		Action: "DEL",
-		Key:    key,
-	})
+	c.delItemLog(key)
 	return nil
 }
 
@@ -135,10 +132,7 @@ func (c *Cache) Flush() error {
 	defer c.Lock.Unlock()
 	// Write to AOF
 	for key := range c.KVMap {
-		c.persistentLogger.WriteAOF(persistentLogger.Command{
-			Action: "DEL",
-			Key:    key,
-		})
+		c.delItemLog(key)
 	}
 	c.KVMap = make(map[string]data.CacheItem)
 	return nil
@@ -188,11 +182,7 @@ func (c *Cache) Expire(key string, expiration time.Duration) error {
 		Persistent: persistent,
 	}
 	// Write to AOF
-	c.persistentLogger.WriteAOF(persistentLogger.Command{
-		Action: "SET",
-		Key:    key,
-		Item:   c.KVMap[key],
-	})
+	c.setItemLog(key, c.KVMap[key])
 	return nil
 }
 
@@ -209,11 +199,7 @@ func (c *Cache) Persist(key string) error {
 		Persistent: true,
 	}
 	// Write to AOF
-	c.persistentLogger.WriteAOF(persistentLogger.Command{
-		Action: "SET",
-		Key:    key,
-		Item:   c.KVMap[key],
-	})
+	c.setItemLog(key, c.KVMap[key])
 	return nil
 }
 
@@ -235,11 +221,7 @@ func (c *Cache) Incr(key string) (int64, error) {
 		Persistent: item.Persistent,
 	}
 	// Write to AOF
-	c.persistentLogger.WriteAOF(persistentLogger.Command{
-		Action: "SET",
-		Key:    key,
-		Item:   c.KVMap[key],
-	})
+	c.setItemLog(key, c.KVMap[key])
 	return value, nil
 }
 
@@ -261,11 +243,7 @@ func (c *Cache) Decr(key string) (int64, error) {
 		Persistent: item.Persistent,
 	}
 	// Write to AOF
-	c.persistentLogger.WriteAOF(persistentLogger.Command{
-		Action: "SET",
-		Key:    key,
-		Item:   c.KVMap[key],
-	})
+	c.setItemLog(key, c.KVMap[key])
 	return value, nil
 }
 
@@ -283,11 +261,7 @@ func (c *Cache) SetNX(key string, value []byte, expiration time.Duration) (bool,
 		Persistent: persistent,
 	}
 	// Write to AOF
-	c.persistentLogger.WriteAOF(persistentLogger.Command{
-		Action: "SET",
-		Key:    key,
-		Item:   c.KVMap[key],
-	})
+	c.setItemLog(key, c.KVMap[key])
 	return true, nil
 }
 
@@ -309,11 +283,7 @@ func (c *Cache) GetSet(key string, value []byte) ([]byte, error) {
 		Persistent: persistent,
 	}
 	// Write to AOF
-	c.persistentLogger.WriteAOF(persistentLogger.Command{
-		Action: "SET",
-		Key:    key,
-		Item:   c.KVMap[key],
-	})
+	c.setItemLog(key, c.KVMap[key])
 	return oldValue, nil
 }
 
@@ -344,18 +314,8 @@ func (c *Cache) MSet(kv map[string][]byte, expiration time.Duration) error {
 			Expiration: expirationTime,
 			Persistent: persistent,
 		}
-	}
-	// Write to AOF
-	for key, value := range kv {
-		c.persistentLogger.WriteAOF(persistentLogger.Command{
-			Action: "SET",
-			Key:    key,
-			Item: data.CacheItem{
-				Value:      value,
-				Expiration: expirationTime,
-				Persistent: persistent,
-			},
-		})
+		// Write to AOF
+		c.setItemLog(key, c.KVMap[key])
 	}
 	return nil
 }
@@ -365,4 +325,21 @@ func isExpired(item data.CacheItem) bool {
 		return true
 	}
 	return false
+}
+
+func (c *Cache) setItemLog(key string, item data.CacheItem) {
+	// Write to AOF
+	c.persistentLogger.WriteAOF(persistentLogger.Command{
+		Action: "SET",
+		Key:    key,
+		Item:   item,
+	})
+}
+
+func (c *Cache) delItemLog(key string) {
+	// Write to AOF
+	c.persistentLogger.WriteAOF(persistentLogger.Command{
+		Action: "DEL",
+		Key:    key,
+	})
 }

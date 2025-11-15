@@ -1,5 +1,5 @@
 persistent:
-  type: memory
+  type: memory # options: memory, file
   path: "./persistent_data/"
 
 ttl:

@@ -35,49 +35,22 @@ func NewAOF(aofDataChannel chan string, aofControlChannel chan string, aofPath s
 }
 
 func (a *AOF) Load(data map[string]data.CacheItem) (map[string]data.CacheItem, error) {
-	// Placeholder for loading AOF data into cache
-	data, err := a.loadTemp(data)
+	// loading AOF data into cache
+	data, err := a.loadFromFile(a.AofFile, data)
 	if err != nil {
 		return data, err
-	}
-	if len(data) == 0 { // if no data loaded from temp file, read main aof file
-		data, err = a.loadMain(data)
-		if err != nil {
-			return data, err
-		}
 	}
 	return data, nil
 }
 
-func (a *AOF) loadTemp(data map[string]data.CacheItem) (map[string]data.CacheItem, error) {
+func (a *AOF) loadFromFile(fileUtil *util.FileUtil, data map[string]data.CacheItem) (map[string]data.CacheItem, error) {
 	// if aof temp file exists, read first
-	lines, err := a.AofTempFile.Load()
+	lines, err := fileUtil.Load()
 	if err != nil {
 		return data, err
 	}
 	for _, line := range lines {
 		// TODO: Parse line and load into cache
-		cmd, key, item, parseErr := a.parser.ParseStringToCMD(line)
-		if parseErr != nil {
-			return nil, parseErr
-		}
-		switch cmd {
-		case "SET":
-			data[key] = item
-		case "DEL":
-			delete(data, key)
-		}
-	}
-	return data, nil
-}
-
-func (a *AOF) loadMain(data map[string]data.CacheItem) (map[string]data.CacheItem, error) {
-	// if no data loaded from temp file, read main aof file
-	lines, err := a.AofFile.Load()
-	if err != nil {
-		return data, err
-	}
-	for _, line := range lines {
 		cmd, key, item, parseErr := a.parser.ParseStringToCMD(line)
 		if parseErr != nil {
 			return nil, parseErr

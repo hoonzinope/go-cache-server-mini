@@ -7,21 +7,25 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
+type PersistentConfig struct {
+	Type string `yaml:"type"`
+	Path string `yaml:"path"`
+}
+
+type TTLConfig struct {
+	Default int64 `yaml:"default"`
+	Max     int64 `yaml:"max"`
+}
+
+type HTTPConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Address string `yaml:"address"`
+}
+
 type Config struct {
-	Persistent struct {
-		Type string `yaml:"type"`
-		Path string `yaml:"path"`
-	} `yaml:"persistent"`
-
-	TTL struct {
-		Default int64 `yaml:"default"`
-		Max     int64 `yaml:"max"`
-	} `yaml:"ttl"`
-
-	HTTP struct {
-		Enabled bool   `yaml:"enabled"`
-		Address string `yaml:"address"`
-	} `yaml:"http"`
+	Persistent PersistentConfig `yaml:"persistent"`
+	TTL        TTLConfig        `yaml:"ttl"`
+	HTTP       HTTPConfig       `yaml:"http"`
 }
 
 func LoadConfig(configFilePath string) (*Config, error) {
@@ -42,24 +46,15 @@ func LoadConfig(configFilePath string) (*Config, error) {
 
 func LoadTestConfig() *Config {
 	return &Config{
-		Persistent: struct {
-			Type string "yaml:\"type\""
-			Path string "yaml:\"path\""
-		}{
+		Persistent: PersistentConfig{
 			Type: "aof",
 			Path: "./persistent_data/",
 		},
-		TTL: struct {
-			Default int64 "yaml:\"default\""
-			Max     int64 "yaml:\"max\""
-		}{
+		TTL: TTLConfig{
 			Default: 86400,
 			Max:     604800,
 		},
-		HTTP: struct {
-			Enabled bool   "yaml:\"enabled\""
-			Address string "yaml:\"address\""
-		}{
+		HTTP: HTTPConfig{
 			Enabled: true,
 			Address: ":8080",
 		},

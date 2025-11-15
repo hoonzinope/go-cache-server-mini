@@ -17,14 +17,17 @@ func NewParser() *Parser {
 	return &Parser{}
 }
 
-func (p *Parser) ConvertCMDToString(cmd, key string, item data.CacheItem) string {
+func (p *Parser) ConvertCMDToString(cmd, key string, item data.CacheItem) (string, error) {
 	line := LineFormat{
 		Cmd:  cmd,
 		Key:  key,
 		Item: item,
 	}
-	jsonBytes, _ := json.Marshal(line)
-	return string(jsonBytes)
+	jsonBytes, err := json.Marshal(line)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonBytes), nil
 }
 
 func (p *Parser) ParseStringToCMD(line string) (cmd string, key string, item data.CacheItem, err error) {
