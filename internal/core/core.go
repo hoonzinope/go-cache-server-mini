@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const sampleDeleteKeyCount = 20 // randomly check 20 keys for expiration each second
+
 type Cache struct {
 	Lock             sync.RWMutex
 	KVMap            map[string]data.CacheItem
@@ -18,6 +20,8 @@ type Cache struct {
 	maxTTL           int64
 	persistentLogger *persistentLogger.PersistentLogger
 	persistentType   string
+	commandBuffer    []persistentLogger.Command
+	bufferLock       sync.Mutex
 }
 
 func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {
@@ -27,6 +31,7 @@ func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {
 		defaultTTL:     config.TTL.Default,
 		maxTTL:         config.TTL.Max,
 		persistentType: config.Persistent.Type,
+		commandBuffer:  make([]persistentLogger.Command, 0),
 	}
 
 	if config.Persistent.Type == "file" {
@@ -48,27 +53,43 @@ func (c *Cache) Load() error {
 
 func (c *Cache) daemon(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
-	var snapTicker *time.Ticker
+	var aofTickerChan <-chan time.Time
+	var snapTickerChan <-chan time.Time
 	if c.persistentType == "file" {
-		snapTicker = time.NewTicker(60 * time.Second)
+		aofTicker := time.NewTicker(100 * time.Millisecond)
+		aofTickerChan = aofTicker.C
+		defer aofTicker.Stop()
+
+		snapTicker := time.NewTicker(60 * time.Second)
+		snapTickerChan = snapTicker.C
+		defer snapTicker.Stop()
 	}
 	for {
 		select {
 		case <-ctx.Done():
 			ticker.Stop()
-			snapTicker.Stop()
-			c.persistentLogger.Close()
+			if c.persistentType == "file" {
+				c.writeCommandToLog()
+				c.persistentLogger.Close()
+			}
 			return
 		case <-ticker.C:
 			c.Lock.Lock()
+			checkCount := 0 // randomly check and delete expired keys
 			for key, item := range c.KVMap {
 				if isExpired(item) {
 					delete(c.KVMap, key)
 					c.delItemLog(key)
 				}
+				checkCount++
+				if checkCount >= sampleDeleteKeyCount {
+					break
+				}
 			}
 			c.Lock.Unlock()
-		case <-snapTicker.C: // trigger snapshot every 60 seconds
+		case <-aofTickerChan: // flush AOF commands every 100ms
+			c.writeCommandToLog()
+		case <-snapTickerChan: // trigger snapshot every 60 seconds
 			if c.persistentLogger != nil {
 				c.persistentLogger.TriggerSnap(c.KVMap, &c.Lock)
 			}
@@ -333,8 +354,10 @@ func isExpired(item data.CacheItem) bool {
 
 func (c *Cache) setItemLog(key string, item data.CacheItem) {
 	if c.persistentType == "file" {
+		c.bufferLock.Lock()
+		defer c.bufferLock.Unlock()
 		// Write to AOF
-		c.persistentLogger.WriteAOF(persistentLogger.Command{
+		c.commandBuffer = append(c.commandBuffer, persistentLogger.Command{
 			Action: "SET",
 			Key:    key,
 			Item:   item,
@@ -344,10 +367,23 @@ func (c *Cache) setItemLog(key string, item data.CacheItem) {
 
 func (c *Cache) delItemLog(key string) {
 	if c.persistentType == "file" {
+		c.bufferLock.Lock()
+		defer c.bufferLock.Unlock()
 		// Write to AOF
-		c.persistentLogger.WriteAOF(persistentLogger.Command{
+		c.commandBuffer = append(c.commandBuffer, persistentLogger.Command{
 			Action: "DEL",
 			Key:    key,
 		})
+	}
+}
+
+func (c *Cache) writeCommandToLog() {
+	if c.persistentType == "file" {
+		c.bufferLock.Lock()
+		defer c.bufferLock.Unlock()
+		for _, cmd := range c.commandBuffer {
+			c.persistentLogger.WriteAOF(cmd)
+		}
+		c.commandBuffer = make([]persistentLogger.Command, 0)
 	}
 }
