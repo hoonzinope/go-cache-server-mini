@@ -35,7 +35,7 @@ func (f *FileUtil) Write(line string) error {
 	f.createIfNotExists()
 	// open file in append mode & always keep it open until CloseFile is called
 	if f.file == nil {
-		file, err := os.OpenFile(f.filePath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
+		file, err := os.OpenFile(f.filePath, os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}

@@ -35,8 +35,8 @@ func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {
 			cache.persistentLogger.Close()
 			return nil, err
 		}
-		go cache.daemon(ctx)
 	}
+	go cache.daemon(ctx)
 	return cache, nil
 }
 
@@ -48,7 +48,10 @@ func (c *Cache) Load() error {
 
 func (c *Cache) daemon(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
-	snapTicker := time.NewTicker(60 * time.Second)
+	var snapTicker *time.Ticker
+	if c.persistentType == "file" {
+		snapTicker = time.NewTicker(60 * time.Second)
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -66,7 +69,9 @@ func (c *Cache) daemon(ctx context.Context) {
 			}
 			c.Lock.Unlock()
 		case <-snapTicker.C: // trigger snapshot every 60 seconds
-			c.persistentLogger.TriggerSnap(c.KVMap, &c.Lock)
+			if c.persistentLogger != nil {
+				c.persistentLogger.TriggerSnap(c.KVMap, &c.Lock)
+			}
 		}
 	}
 }

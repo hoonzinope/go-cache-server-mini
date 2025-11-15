@@ -3,6 +3,7 @@ package persistentLogger
 import (
 	"go-cache-server-mini/internal/core/data"
 	"go-cache-server-mini/internal/util"
+	"log"
 )
 
 type Snap struct {
@@ -65,18 +66,33 @@ func (s *Snap) Save() error {
 		// Process the snapshot data
 		if len(data) == 0 {
 			// If no data, just truncate the snap file
-			s.SnapFile.Truncate()
+			if err := s.SnapFile.Truncate(); err != nil {
+				log.Printf("Error truncating snap file: %v", err)
+			}
 		} else {
 			// Write data to temp snap file
-			s.SnapTempFile.Truncate() // create/truncate temp file
+			if err := s.SnapTempFile.Truncate(); err != nil {
+				log.Printf("Error truncating temp snap file: %v", err)
+				s.SnapDoneChannel <- false
+				continue
+			}
 			for key, item := range data {
 				cmd, err := s.parser.ConvertCMDToString("SET", key, item)
 				if err != nil {
-					return err
+					log.Printf("Error converting CMD to string for snap: %v", err)
+					continue
 				}
-				s.SnapTempFile.Write(cmd)
+				if err = s.SnapTempFile.Write(cmd); err != nil {
+					log.Printf("Error writing to temp snap file: %v", err)
+					s.SnapDoneChannel <- false
+					continue
+				}
 			}
-			util.SwitchFileUtil(s.SnapTempFile, s.SnapFile) // Switch temp file to main file & delete temp file
+			if err := util.SwitchFileUtil(s.SnapTempFile, s.SnapFile); err != nil { // Switch temp file to main file & delete temp file
+				log.Printf("Error switching snap files: %v", err)
+				s.SnapDoneChannel <- false
+				continue
+			}
 		}
 		s.SnapDoneChannel <- true
 	}

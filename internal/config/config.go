@@ -47,7 +47,7 @@ func LoadConfig(configFilePath string) (*Config, error) {
 func LoadTestConfig() *Config {
 	return &Config{
 		Persistent: PersistentConfig{
-			Type: "aof",
+			Type: "file",
 			Path: "./persistent_data/",
 		},
 		TTL: TTLConfig{

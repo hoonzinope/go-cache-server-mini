@@ -142,13 +142,10 @@ func (p *PersistentLogger) TriggerSnap(kvmap map[string]data.CacheItem, lock *sy
 }
 
 func (p *PersistentLogger) waitForSnapDoneAck() bool {
-	for {
-		select {
-		case _, ok := <-p.cacheChan.snapDone:
-			return ok
-		case <-p.ctx.Done():
-			_, ok := <-p.cacheChan.snapDone
-			return ok
-		}
+	select {
+	case _, ok := <-p.cacheChan.snapDone:
+		return ok
+	case <-p.ctx.Done():
+		return false
 	}
 }
