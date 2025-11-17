@@ -21,7 +21,6 @@ type Cache struct {
 	persistentLogger *persistentLogger.PersistentLogger
 	persistentType   string
 	commandBuffer    []persistentLogger.Command
-	bufferLock       sync.Mutex
 }
 
 func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {

@@ -79,7 +79,12 @@ func (a *AOF) Save() error {
 		select {
 		case control, controlOk := <-a.AofControlChannel:
 			if !controlOk {
-				continue
+				if len(a.batchCmdBuffer) > 0 {
+					if err := a.flush(); err != nil {
+						return err
+					}
+				}
+				return nil
 			}
 			// Handle control messages
 			switch control {
@@ -92,35 +97,24 @@ func (a *AOF) Save() error {
 			}
 		case cmd, cmdOk := <-a.AofDataChannel:
 			if !cmdOk {
+				if len(a.batchCmdBuffer) > 0 {
+					if err := a.flush(); err != nil {
+						return err
+					}
+				}
 				return nil
 			}
 			a.batchCmdBuffer = append(a.batchCmdBuffer, cmd)
 			if len(a.batchCmdBuffer) >= 1000 {
-				switch a.tempFileFlag {
-				case true:
-					for _, cmd := range a.batchCmdBuffer {
-						a.AofTempFile.Write(cmd) // Write to temp file
-					}
-				case false:
-					for _, cmd := range a.batchCmdBuffer {
-						a.AofFile.Write(cmd) // Write to main file
-					}
+				if err := a.flush(); err != nil {
+					return err
 				}
-				a.batchCmdBuffer = a.batchCmdBuffer[:0] // Reset buffer
 			}
 		case <-batchTicker.C:
 			if len(a.batchCmdBuffer) > 0 {
-				switch a.tempFileFlag {
-				case true:
-					for _, cmd := range a.batchCmdBuffer {
-						a.AofTempFile.Write(cmd) // Write to temp file
-					}
-				case false:
-					for _, cmd := range a.batchCmdBuffer {
-						a.AofFile.Write(cmd) // Write to main file
-					}
+				if err := a.flush(); err != nil {
+					return err
 				}
-				a.batchCmdBuffer = a.batchCmdBuffer[:0] // Reset buffer
 			}
 		}
 	}
@@ -135,4 +129,26 @@ func (a *AOF) close() error {
 
 func (a *AOF) Wait() {
 	<-a.done
+}
+
+func (a *AOF) flush() error {
+	var err error
+	switch a.tempFileFlag {
+	case true:
+		for _, cmd := range a.batchCmdBuffer {
+			err = a.AofTempFile.Write(cmd) // Write to temp file
+			if err != nil {
+				return err
+			}
+		}
+	case false:
+		for _, cmd := range a.batchCmdBuffer {
+			err = a.AofFile.Write(cmd) // Write to main file
+			if err != nil {
+				return err
+			}
+		}
+	}
+	a.batchCmdBuffer = a.batchCmdBuffer[:0] // Reset buffer
+	return nil
 }
