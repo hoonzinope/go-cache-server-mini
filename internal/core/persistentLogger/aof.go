@@ -31,7 +31,7 @@ func NewAOF(aofDataChannel chan string, aofControlChannel chan string, aofPath s
 		parser:            NewParser(),
 		AofPath:           aofPath,
 		done:              make(chan struct{}),
-		batchCmdBuffer:    make([]string, 1000), // buffer for batch commands
+		batchCmdBuffer:    make([]string, 0, 1000), // buffer for batch commands
 	}
 	go aof.Save()
 	return aof
@@ -47,13 +47,11 @@ func (a *AOF) Load(data map[string]data.CacheItem) (map[string]data.CacheItem, e
 }
 
 func (a *AOF) loadFromFile(fileUtil *util.FileUtil, data map[string]data.CacheItem) (map[string]data.CacheItem, error) {
-	// if aof temp file exists, read first
 	lines, err := fileUtil.Load()
 	if err != nil {
 		return data, err
 	}
 	for _, line := range lines {
-		// TODO: Parse line and load into cache
 		cmd, key, item, parseErr := a.parser.ParseStringToCMD(line)
 		if parseErr != nil {
 			return nil, parseErr
@@ -69,7 +67,7 @@ func (a *AOF) loadFromFile(fileUtil *util.FileUtil, data map[string]data.CacheIt
 }
 
 func (a *AOF) Save() error {
-	batchTicker := time.NewTicker(1 * time.Second)
+	batchTicker := time.NewTicker(100 * time.Millisecond)
 	defer func() {
 		batchTicker.Stop()
 		a.close()
@@ -133,20 +131,16 @@ func (a *AOF) Wait() {
 
 func (a *AOF) flush() error {
 	var err error
-	switch a.tempFileFlag {
-	case true:
-		for _, cmd := range a.batchCmdBuffer {
-			err = a.AofTempFile.Write(cmd) // Write to temp file
-			if err != nil {
-				return err
-			}
-		}
-	case false:
-		for _, cmd := range a.batchCmdBuffer {
-			err = a.AofFile.Write(cmd) // Write to main file
-			if err != nil {
-				return err
-			}
+	var targetFile *util.FileUtil
+	if a.tempFileFlag {
+		targetFile = a.AofTempFile
+	} else {
+		targetFile = a.AofFile
+	}
+	for _, cmd := range a.batchCmdBuffer {
+		err = targetFile.Write(cmd) // Write to target file
+		if err != nil {
+			return err
 		}
 	}
 	a.batchCmdBuffer = a.batchCmdBuffer[:0] // Reset buffer

@@ -20,7 +20,6 @@ type Cache struct {
 	maxTTL           int64
 	persistentLogger *persistentLogger.PersistentLogger
 	persistentType   string
-	commandBuffer    []persistentLogger.Command
 }
 
 func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {
@@ -30,7 +29,6 @@ func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {
 		defaultTTL:     config.TTL.Default,
 		maxTTL:         config.TTL.Max,
 		persistentType: config.Persistent.Type,
-		commandBuffer:  make([]persistentLogger.Command, 0),
 	}
 
 	if config.Persistent.Type == "file" {
