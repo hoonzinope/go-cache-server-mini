@@ -3,6 +3,7 @@ package persistentLogger
 import (
 	"go-cache-server-mini/internal/core/data"
 	"go-cache-server-mini/internal/util"
+	"time"
 )
 
 type AOF struct {
@@ -14,6 +15,7 @@ type AOF struct {
 	parser            *Parser
 	AofPath           string
 	done              chan struct{}
+	batchCmdBuffer    []string
 }
 
 func NewAOF(aofDataChannel chan string, aofControlChannel chan string, aofPath string) *AOF {
@@ -29,6 +31,7 @@ func NewAOF(aofDataChannel chan string, aofControlChannel chan string, aofPath s
 		parser:            NewParser(),
 		AofPath:           aofPath,
 		done:              make(chan struct{}),
+		batchCmdBuffer:    make([]string, 1000), // buffer for batch commands
 	}
 	go aof.Save()
 	return aof
@@ -66,7 +69,9 @@ func (a *AOF) loadFromFile(fileUtil *util.FileUtil, data map[string]data.CacheIt
 }
 
 func (a *AOF) Save() error {
+	batchTicker := time.NewTicker(1 * time.Second)
 	defer func() {
+		batchTicker.Stop()
 		a.close()
 		close(a.done)
 	}()
@@ -89,11 +94,33 @@ func (a *AOF) Save() error {
 			if !cmdOk {
 				return nil
 			}
-			switch a.tempFileFlag {
-			case true:
-				a.AofTempFile.Write(cmd) // Write to temp file
-			case false:
-				a.AofFile.Write(cmd) // Write to main file
+			a.batchCmdBuffer = append(a.batchCmdBuffer, cmd)
+			if len(a.batchCmdBuffer) >= 1000 {
+				switch a.tempFileFlag {
+				case true:
+					for _, cmd := range a.batchCmdBuffer {
+						a.AofTempFile.Write(cmd) // Write to temp file
+					}
+				case false:
+					for _, cmd := range a.batchCmdBuffer {
+						a.AofFile.Write(cmd) // Write to main file
+					}
+				}
+				a.batchCmdBuffer = a.batchCmdBuffer[:0] // Reset buffer
+			}
+		case <-batchTicker.C:
+			if len(a.batchCmdBuffer) > 0 {
+				switch a.tempFileFlag {
+				case true:
+					for _, cmd := range a.batchCmdBuffer {
+						a.AofTempFile.Write(cmd) // Write to temp file
+					}
+				case false:
+					for _, cmd := range a.batchCmdBuffer {
+						a.AofFile.Write(cmd) // Write to main file
+					}
+				}
+				a.batchCmdBuffer = a.batchCmdBuffer[:0] // Reset buffer
 			}
 		}
 	}

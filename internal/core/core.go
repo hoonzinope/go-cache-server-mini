@@ -53,13 +53,10 @@ func (c *Cache) Load() error {
 
 func (c *Cache) daemon(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
-	var aofTickerChan <-chan time.Time
+	defer ticker.Stop()
+
 	var snapTickerChan <-chan time.Time
 	if c.persistentType == "file" {
-		aofTicker := time.NewTicker(100 * time.Millisecond)
-		aofTickerChan = aofTicker.C
-		defer aofTicker.Stop()
-
 		snapTicker := time.NewTicker(60 * time.Second)
 		snapTickerChan = snapTicker.C
 		defer snapTicker.Stop()
@@ -67,9 +64,7 @@ func (c *Cache) daemon(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			ticker.Stop()
 			if c.persistentType == "file" {
-				c.writeCommandToLog()
 				c.persistentLogger.Close()
 			}
 			return
@@ -87,8 +82,6 @@ func (c *Cache) daemon(ctx context.Context) {
 				}
 			}
 			c.Lock.Unlock()
-		case <-aofTickerChan: // flush AOF commands every 100ms
-			c.writeCommandToLog()
 		case <-snapTickerChan: // trigger snapshot every 60 seconds
 			if c.persistentLogger != nil {
 				c.persistentLogger.TriggerSnap(c.KVMap, &c.Lock)
@@ -354,10 +347,8 @@ func isExpired(item data.CacheItem) bool {
 
 func (c *Cache) setItemLog(key string, item data.CacheItem) {
 	if c.persistentType == "file" {
-		c.bufferLock.Lock()
-		defer c.bufferLock.Unlock()
 		// Write to AOF
-		c.commandBuffer = append(c.commandBuffer, persistentLogger.Command{
+		c.persistentLogger.WriteAOF(persistentLogger.Command{
 			Action: "SET",
 			Key:    key,
 			Item:   item,
@@ -367,23 +358,10 @@ func (c *Cache) setItemLog(key string, item data.CacheItem) {
 
 func (c *Cache) delItemLog(key string) {
 	if c.persistentType == "file" {
-		c.bufferLock.Lock()
-		defer c.bufferLock.Unlock()
 		// Write to AOF
-		c.commandBuffer = append(c.commandBuffer, persistentLogger.Command{
+		c.persistentLogger.WriteAOF(persistentLogger.Command{
 			Action: "DEL",
 			Key:    key,
 		})
-	}
-}
-
-func (c *Cache) writeCommandToLog() {
-	if c.persistentType == "file" {
-		c.bufferLock.Lock()
-		defer c.bufferLock.Unlock()
-		for _, cmd := range c.commandBuffer {
-			c.persistentLogger.WriteAOF(cmd)
-		}
-		c.commandBuffer = make([]persistentLogger.Command, 0)
 	}
 }

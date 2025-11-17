@@ -38,7 +38,7 @@ func NewPersistentLogger(ctx context.Context, config *config.Config) *Persistent
 	// initialize cache channels
 	cacheChan := cacheChannel{
 		aofControl: make(chan string),
-		aofData:    make(chan string, 1000),
+		aofData:    make(chan string, 10000), // 10k buffer for AOF data channel
 		snapData:   make(chan map[string]data.CacheItem),
 		snapDone:   make(chan bool),
 	}
