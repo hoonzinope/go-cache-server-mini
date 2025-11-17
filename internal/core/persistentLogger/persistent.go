@@ -5,7 +5,6 @@ import (
 	"go-cache-server-mini/internal/config"
 	"go-cache-server-mini/internal/core/data"
 	"log"
-	"maps"
 	"sync"
 	"sync/atomic"
 )
@@ -104,7 +103,7 @@ func (p *PersistentLogger) WriteAOF(command Command) {
 	}
 }
 
-func (p *PersistentLogger) TriggerSnap(kvmap map[string]data.CacheItem, lock *sync.RWMutex) {
+func (p *PersistentLogger) TriggerSnap(kvmap map[string]data.CacheItem) {
 	if atomic.LoadInt32(&p.closed) == 1 {
 		return
 	}
@@ -118,15 +117,10 @@ func (p *PersistentLogger) TriggerSnap(kvmap map[string]data.CacheItem, lock *sy
 	case p.cacheChan.aofControl <- "PAUSE":
 	}
 
-	lock.RLock()
-	duplicatedData := make(map[string]data.CacheItem, len(kvmap))
-	maps.Copy(duplicatedData, kvmap)
-	lock.RUnlock()
-
 	select {
 	case <-p.ctx.Done():
 		return
-	case p.cacheChan.snapData <- duplicatedData:
+	case p.cacheChan.snapData <- kvmap:
 	}
 
 	if !p.waitForSnapDoneAck() {

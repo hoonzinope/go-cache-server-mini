@@ -1,6 +1,9 @@
 package util
 
 import (
+	"hash/fnv"
+	"math/rand"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -32,4 +35,32 @@ func SetExpiration(defaultTTL, maxTTL int64, reqTTL int64) (expiration time.Dura
 	}
 	expiration = time.Duration(ttl) * time.Second
 	return expiration, persistent
+}
+
+// key to hash
+func Fnv32aHash(s string) uint32 {
+	h := fnv.New32a()
+	h.Write([]byte(s))
+	return h.Sum32()
+}
+
+// 최대 샤드 개수 중 n개의 샤드 인덱스 반환
+func GetRandomShardIndex(shardCount int, count int) []int {
+	if count <= 0 || count > shardCount {
+		return nil
+	}
+	seed := time.Now().UnixNano()
+	r := rand.New(rand.NewSource(seed))
+	indexes := make([]int, 0, count)
+	for i := 0; i < count; i++ {
+		rint := r.Intn(shardCount)
+		if contains := slices.Contains(indexes, rint); contains {
+			i--
+			continue
+		}
+		indexes = append(indexes, rint)
+	}
+	// sort indexes to have consistent order
+	slices.Sort(indexes)
+	return indexes
 }
