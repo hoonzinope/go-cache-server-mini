@@ -3,6 +3,7 @@ package persistentLogger
 import (
 	"go-cache-server-mini/internal/core/data"
 	"go-cache-server-mini/internal/util"
+	"time"
 )
 
 type AOF struct {
@@ -14,6 +15,7 @@ type AOF struct {
 	parser            *Parser
 	AofPath           string
 	done              chan struct{}
+	batchCmdBuffer    []string
 }
 
 func NewAOF(aofDataChannel chan string, aofControlChannel chan string, aofPath string) *AOF {
@@ -29,6 +31,7 @@ func NewAOF(aofDataChannel chan string, aofControlChannel chan string, aofPath s
 		parser:            NewParser(),
 		AofPath:           aofPath,
 		done:              make(chan struct{}),
+		batchCmdBuffer:    make([]string, 0, 1000), // buffer for batch commands
 	}
 	go aof.Save()
 	return aof
@@ -44,13 +47,11 @@ func (a *AOF) Load(data map[string]data.CacheItem) (map[string]data.CacheItem, e
 }
 
 func (a *AOF) loadFromFile(fileUtil *util.FileUtil, data map[string]data.CacheItem) (map[string]data.CacheItem, error) {
-	// if aof temp file exists, read first
 	lines, err := fileUtil.Load()
 	if err != nil {
 		return data, err
 	}
 	for _, line := range lines {
-		// TODO: Parse line and load into cache
 		cmd, key, item, parseErr := a.parser.ParseStringToCMD(line)
 		if parseErr != nil {
 			return nil, parseErr
@@ -66,7 +67,9 @@ func (a *AOF) loadFromFile(fileUtil *util.FileUtil, data map[string]data.CacheIt
 }
 
 func (a *AOF) Save() error {
+	batchTicker := time.NewTicker(100 * time.Millisecond)
 	defer func() {
+		batchTicker.Stop()
 		a.close()
 		close(a.done)
 	}()
@@ -74,7 +77,12 @@ func (a *AOF) Save() error {
 		select {
 		case control, controlOk := <-a.AofControlChannel:
 			if !controlOk {
-				continue
+				if len(a.batchCmdBuffer) > 0 {
+					if err := a.flush(); err != nil {
+						return err
+					}
+				}
+				return nil
 			}
 			// Handle control messages
 			switch control {
@@ -87,13 +95,24 @@ func (a *AOF) Save() error {
 			}
 		case cmd, cmdOk := <-a.AofDataChannel:
 			if !cmdOk {
+				if len(a.batchCmdBuffer) > 0 {
+					if err := a.flush(); err != nil {
+						return err
+					}
+				}
 				return nil
 			}
-			switch a.tempFileFlag {
-			case true:
-				a.AofTempFile.Write(cmd) // Write to temp file
-			case false:
-				a.AofFile.Write(cmd) // Write to main file
+			a.batchCmdBuffer = append(a.batchCmdBuffer, cmd)
+			if len(a.batchCmdBuffer) >= 1000 {
+				if err := a.flush(); err != nil {
+					return err
+				}
+			}
+		case <-batchTicker.C:
+			if len(a.batchCmdBuffer) > 0 {
+				if err := a.flush(); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -108,4 +127,22 @@ func (a *AOF) close() error {
 
 func (a *AOF) Wait() {
 	<-a.done
+}
+
+func (a *AOF) flush() error {
+	var err error
+	var targetFile *util.FileUtil
+	if a.tempFileFlag {
+		targetFile = a.AofTempFile
+	} else {
+		targetFile = a.AofFile
+	}
+	for _, cmd := range a.batchCmdBuffer {
+		err = targetFile.Write(cmd) // Write to target file
+		if err != nil {
+			return err
+		}
+	}
+	a.batchCmdBuffer = a.batchCmdBuffer[:0] // Reset buffer
+	return nil
 }

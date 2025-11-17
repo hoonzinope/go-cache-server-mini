@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const sampleDeleteKeyCount = 20 // randomly check 20 keys for expiration each second
+
 type Cache struct {
 	Lock             sync.RWMutex
 	KVMap            map[string]data.CacheItem
@@ -48,27 +50,36 @@ func (c *Cache) Load() error {
 
 func (c *Cache) daemon(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
-	var snapTicker *time.Ticker
+	defer ticker.Stop()
+
+	var snapTickerChan <-chan time.Time
 	if c.persistentType == "file" {
-		snapTicker = time.NewTicker(60 * time.Second)
+		snapTicker := time.NewTicker(60 * time.Second)
+		snapTickerChan = snapTicker.C
+		defer snapTicker.Stop()
 	}
 	for {
 		select {
 		case <-ctx.Done():
-			ticker.Stop()
-			snapTicker.Stop()
-			c.persistentLogger.Close()
+			if c.persistentType == "file" {
+				c.persistentLogger.Close()
+			}
 			return
 		case <-ticker.C:
 			c.Lock.Lock()
+			checkCount := 0 // randomly check and delete expired keys
 			for key, item := range c.KVMap {
 				if isExpired(item) {
 					delete(c.KVMap, key)
 					c.delItemLog(key)
 				}
+				checkCount++
+				if checkCount >= sampleDeleteKeyCount {
+					break
+				}
 			}
 			c.Lock.Unlock()
-		case <-snapTicker.C: // trigger snapshot every 60 seconds
+		case <-snapTickerChan: // trigger snapshot every 60 seconds
 			if c.persistentLogger != nil {
 				c.persistentLogger.TriggerSnap(c.KVMap, &c.Lock)
 			}
