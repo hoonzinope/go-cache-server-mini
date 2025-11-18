@@ -14,16 +14,18 @@ import (
 const shardCount = 256          // number of shards for sharded locks
 const sampleDeleteKeyCount = 20 // randomly check 20 keys for expiration each second
 
+type cacheShard struct {
+	lock  sync.RWMutex
+	kvmap map[string]data.CacheItem
+}
+
 type Cache struct {
 	KVMap            map[string]data.CacheItem // for snapshot purpose
 	defaultTTL       int64
 	maxTTL           int64
 	persistentLogger *persistentLogger.PersistentLogger
 	persistentType   string
-	shardedMap       [shardCount]*struct { // sharded map for concurrent access
-		lock  sync.RWMutex
-		kvmap map[string]data.CacheItem
-	}
+	shardedMap       [shardCount]*cacheShard // sharded map for concurrent access
 }
 
 func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {
@@ -50,19 +52,10 @@ func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {
 	return cache, nil
 }
 
-func initShardedMap() [shardCount]*struct {
-	lock  sync.RWMutex
-	kvmap map[string]data.CacheItem
-} {
-	shardedMap := [shardCount]*struct {
-		lock  sync.RWMutex
-		kvmap map[string]data.CacheItem
-	}{}
+func initShardedMap() [shardCount]*cacheShard {
+	shardedMap := [shardCount]*cacheShard{}
 	for i := 0; i < shardCount; i++ {
-		shardedMap[i] = &struct {
-			lock  sync.RWMutex
-			kvmap map[string]data.CacheItem
-		}{
+		shardedMap[i] = &cacheShard{
 			lock:  sync.RWMutex{},
 			kvmap: make(map[string]data.CacheItem),
 		}
@@ -451,16 +444,12 @@ func (c *Cache) expireSampling() {
 }
 
 func (c *Cache) snapMap() {
-	for i := 0; i < shardCount; i++ {
-		c.shardedMap[i].lock.RLock()
-	}
 	c.KVMap = make(map[string]data.CacheItem)
 	for i := 0; i < shardCount; i++ {
+		c.shardedMap[i].lock.RLock()
 		for key, item := range c.shardedMap[i].kvmap {
 			c.KVMap[key] = item
 		}
-	}
-	for i := shardCount - 1; i >= 0; i-- {
 		c.shardedMap[i].lock.RUnlock()
 	}
 	c.persistentLogger.TriggerSnap(c.KVMap)

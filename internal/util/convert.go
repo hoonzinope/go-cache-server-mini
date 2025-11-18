@@ -49,9 +49,7 @@ func GetRandomShardIndex(shardCount int, count int) []int {
 	if count <= 0 || count > shardCount {
 		return nil
 	}
-	seed := time.Now().UnixNano()
-	r := rand.New(rand.NewSource(seed))
-	p := r.Perm(shardCount)
+	p := rand.Perm(shardCount)
 	indexes := p[:count]
 	// sort indexes to have consistent order
 	slices.Sort(indexes)
