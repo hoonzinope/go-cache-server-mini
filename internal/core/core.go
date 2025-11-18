@@ -11,24 +11,34 @@ import (
 	"time"
 )
 
+const shardCount = 256          // number of shards for sharded locks
 const sampleDeleteKeyCount = 20 // randomly check 20 keys for expiration each second
 
+type cacheShard struct {
+	lock  sync.RWMutex
+	kvmap map[string]data.CacheItem
+}
+
 type Cache struct {
-	Lock             sync.RWMutex
-	KVMap            map[string]data.CacheItem
+	KVMap            map[string]data.CacheItem // for snapshot purpose
 	defaultTTL       int64
 	maxTTL           int64
 	persistentLogger *persistentLogger.PersistentLogger
 	persistentType   string
+	shardedMap       [shardCount]*cacheShard // sharded map for concurrent access
 }
 
 func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {
+
+	// Initialize sharded map
+	shardedMap := initShardedMap()
 
 	cache := &Cache{
 		KVMap:          make(map[string]data.CacheItem),
 		defaultTTL:     config.TTL.Default,
 		maxTTL:         config.TTL.Max,
 		persistentType: config.Persistent.Type,
+		shardedMap:     shardedMap,
 	}
 
 	if config.Persistent.Type == "file" {
@@ -42,9 +52,32 @@ func NewCache(ctx context.Context, config *config.Config) (*Cache, error) {
 	return cache, nil
 }
 
+func initShardedMap() [shardCount]*cacheShard {
+	shardedMap := [shardCount]*cacheShard{}
+	for i := 0; i < shardCount; i++ {
+		shardedMap[i] = &cacheShard{
+			lock:  sync.RWMutex{},
+			kvmap: make(map[string]data.CacheItem),
+		}
+	}
+	return shardedMap
+}
+
+func (c *Cache) getShardedIndex(key string) int {
+	hash := util.Fnv32aHash(key)
+	return int(hash % uint32(shardCount))
+}
+
 func (c *Cache) Load() error {
 	var loadErr error
 	c.KVMap, loadErr = c.persistentLogger.Load(c.KVMap)
+	// Load data into shardedMap
+	for key, item := range c.KVMap {
+		index := c.getShardedIndex(key)
+		c.shardedMap[index].lock.Lock()
+		c.shardedMap[index].kvmap[key] = item
+		c.shardedMap[index].lock.Unlock()
+	}
 	return loadErr
 }
 
@@ -66,45 +99,37 @@ func (c *Cache) daemon(ctx context.Context) {
 			}
 			return
 		case <-ticker.C:
-			c.Lock.Lock()
-			checkCount := 0 // randomly check and delete expired keys
-			for key, item := range c.KVMap {
-				if isExpired(item) {
-					delete(c.KVMap, key)
-					c.delItemLog(key)
-				}
-				checkCount++
-				if checkCount >= sampleDeleteKeyCount {
-					break
-				}
-			}
-			c.Lock.Unlock()
+			c.expireSampling()
 		case <-snapTickerChan: // trigger snapshot every 60 seconds
 			if c.persistentLogger != nil {
-				c.persistentLogger.TriggerSnap(c.KVMap, &c.Lock)
+				c.snapMap()
 			}
 		}
 	}
 }
 
 func (c *Cache) Set(key string, value []byte, expiration time.Duration) error {
-	c.Lock.Lock()
-	defer c.Lock.Unlock()
+	index := c.getShardedIndex(key)
+	c.shardedMap[index].lock.Lock()
+	defer c.shardedMap[index].lock.Unlock()
+
 	expiration, persistent := util.SetExpiration(c.defaultTTL, c.maxTTL, int64(expiration.Seconds()))
-	c.KVMap[key] = data.CacheItem{
+	c.shardedMap[index].kvmap[key] = data.CacheItem{
 		Value:      value,
 		Expiration: time.Now().Add(expiration),
 		Persistent: persistent,
 	}
 	// Write to AOF
-	c.setItemLog(key, c.KVMap[key])
+	c.setItemLog(key, c.shardedMap[index].kvmap[key])
 	return nil
 }
 
 func (c *Cache) Get(key string) ([]byte, bool) {
-	c.Lock.RLock()
-	defer c.Lock.RUnlock()
-	item, exists := c.KVMap[key]
+	index := c.getShardedIndex(key)
+	c.shardedMap[index].lock.RLock()
+	defer c.shardedMap[index].lock.RUnlock()
+
+	item, exists := c.shardedMap[index].kvmap[key]
 	if exists {
 		if isExpired(item) {
 			return nil, false
@@ -115,18 +140,20 @@ func (c *Cache) Get(key string) ([]byte, bool) {
 }
 
 func (c *Cache) Del(key string) error {
-	c.Lock.Lock()
-	defer c.Lock.Unlock()
-	delete(c.KVMap, key)
+	index := c.getShardedIndex(key)
+	c.shardedMap[index].lock.Lock()
+	defer c.shardedMap[index].lock.Unlock()
+	delete(c.shardedMap[index].kvmap, key)
 	// Write to AOF
 	c.delItemLog(key)
 	return nil
 }
 
 func (c *Cache) Exists(key string) bool {
-	c.Lock.RLock()
-	defer c.Lock.RUnlock()
-	item, exists := c.KVMap[key]
+	index := c.getShardedIndex(key)
+	c.shardedMap[index].lock.RLock()
+	defer c.shardedMap[index].lock.RUnlock()
+	item, exists := c.shardedMap[index].kvmap[key]
 	if exists {
 		return !isExpired(item)
 	}
@@ -134,32 +161,38 @@ func (c *Cache) Exists(key string) bool {
 }
 
 func (c *Cache) Keys() []string {
-	c.Lock.RLock()
-	defer c.Lock.RUnlock()
 	var keys []string
-	for key, item := range c.KVMap {
-		if !isExpired(item) {
-			keys = append(keys, key)
+	for i := 0; i < shardCount; i++ {
+		c.shardedMap[i].lock.RLock()
+		for key, item := range c.shardedMap[i].kvmap {
+			if !isExpired(item) {
+				keys = append(keys, key)
+			}
 		}
+		c.shardedMap[i].lock.RUnlock()
 	}
+
 	return keys
 }
 
 func (c *Cache) Flush() error {
-	c.Lock.Lock()
-	defer c.Lock.Unlock()
-	// Write to AOF
-	for key := range c.KVMap {
-		c.delItemLog(key)
+	for i := 0; i < shardCount; i++ {
+		c.shardedMap[i].lock.Lock()
+		for key := range c.shardedMap[i].kvmap {
+			// Write to AOF
+			c.delItemLog(key)
+		}
+		c.shardedMap[i].kvmap = make(map[string]data.CacheItem)
+		c.shardedMap[i].lock.Unlock()
 	}
-	c.KVMap = make(map[string]data.CacheItem)
 	return nil
 }
 
 func (c *Cache) TTL(key string) (time.Duration, bool) {
-	c.Lock.RLock()
-	defer c.Lock.RUnlock()
-	item, exists := c.KVMap[key]
+	index := c.getShardedIndex(key)
+	c.shardedMap[index].lock.RLock()
+	defer c.shardedMap[index].lock.RUnlock()
+	item, exists := c.shardedMap[index].kvmap[key]
 	if !exists {
 		return 0, false
 	}
@@ -174,54 +207,57 @@ func (c *Cache) TTL(key string) (time.Duration, bool) {
 }
 
 func (c *Cache) Expire(key string, expiration time.Duration) error {
-	c.Lock.Lock()
-	defer c.Lock.Unlock()
+	index := c.getShardedIndex(key)
+	c.shardedMap[index].lock.Lock()
+	defer c.shardedMap[index].lock.Unlock()
 	if expiration <= 0 {
-		delete(c.KVMap, key)
+		delete(c.shardedMap[index].kvmap, key)
 		// Write to AOF
 		c.delItemLog(key)
 		return nil
 	}
 
 	expiration, persistent := util.SetExpiration(c.defaultTTL, c.maxTTL, int64(expiration.Seconds()))
-	item, exists := c.KVMap[key]
+	item, exists := c.shardedMap[index].kvmap[key]
 	if !exists {
 		return internal.ErrNotFound
 	}
 	if isExpired(item) {
 		return internal.ErrNotFound
 	}
-	c.KVMap[key] = data.CacheItem{
+	c.shardedMap[index].kvmap[key] = data.CacheItem{
 		Value:      item.Value,
 		Expiration: time.Now().Add(expiration),
 		Persistent: persistent,
 	}
 	// Write to AOF
-	c.setItemLog(key, c.KVMap[key])
+	c.setItemLog(key, c.shardedMap[index].kvmap[key])
 	return nil
 }
 
 func (c *Cache) Persist(key string) error {
-	c.Lock.Lock()
-	defer c.Lock.Unlock()
-	item, exists := c.KVMap[key]
+	index := c.getShardedIndex(key)
+	c.shardedMap[index].lock.Lock()
+	defer c.shardedMap[index].lock.Unlock()
+	item, exists := c.shardedMap[index].kvmap[key]
 	if !exists || isExpired(item) {
 		return internal.ErrNotFound
 	}
-	c.KVMap[key] = data.CacheItem{
+	c.shardedMap[index].kvmap[key] = data.CacheItem{
 		Value:      item.Value,
 		Expiration: time.Time{},
 		Persistent: true,
 	}
 	// Write to AOF
-	c.setItemLog(key, c.KVMap[key])
+	c.setItemLog(key, c.shardedMap[index].kvmap[key])
 	return nil
 }
 
 func (c *Cache) Incr(key string) (int64, error) {
-	c.Lock.Lock()
-	defer c.Lock.Unlock()
-	item, exists := c.KVMap[key]
+	index := c.getShardedIndex(key)
+	c.shardedMap[index].lock.Lock()
+	defer c.shardedMap[index].lock.Unlock()
+	item, exists := c.shardedMap[index].kvmap[key]
 	if !exists || isExpired(item) {
 		return 0, internal.ErrNotFound
 	}
@@ -230,20 +266,21 @@ func (c *Cache) Incr(key string) (int64, error) {
 		return 0, err
 	}
 	value++
-	c.KVMap[key] = data.CacheItem{
+	c.shardedMap[index].kvmap[key] = data.CacheItem{
 		Value:      util.Int64ToBytes(value),
 		Expiration: item.Expiration,
 		Persistent: item.Persistent,
 	}
 	// Write to AOF
-	c.setItemLog(key, c.KVMap[key])
+	c.setItemLog(key, c.shardedMap[index].kvmap[key])
 	return value, nil
 }
 
 func (c *Cache) Decr(key string) (int64, error) {
-	c.Lock.Lock()
-	defer c.Lock.Unlock()
-	item, exists := c.KVMap[key]
+	index := c.getShardedIndex(key)
+	c.shardedMap[index].lock.Lock()
+	defer c.shardedMap[index].lock.Unlock()
+	item, exists := c.shardedMap[index].kvmap[key]
 	if !exists || isExpired(item) {
 		return 0, internal.ErrNotFound
 	}
@@ -252,38 +289,40 @@ func (c *Cache) Decr(key string) (int64, error) {
 		return 0, err
 	}
 	value--
-	c.KVMap[key] = data.CacheItem{
+	c.shardedMap[index].kvmap[key] = data.CacheItem{
 		Value:      util.Int64ToBytes(value),
 		Expiration: item.Expiration,
 		Persistent: item.Persistent,
 	}
 	// Write to AOF
-	c.setItemLog(key, c.KVMap[key])
+	c.setItemLog(key, c.shardedMap[index].kvmap[key])
 	return value, nil
 }
 
 func (c *Cache) SetNX(key string, value []byte, expiration time.Duration) (bool, error) {
-	c.Lock.Lock()
-	defer c.Lock.Unlock()
-	item, exists := c.KVMap[key]
+	index := c.getShardedIndex(key)
+	c.shardedMap[index].lock.Lock()
+	defer c.shardedMap[index].lock.Unlock()
+	item, exists := c.shardedMap[index].kvmap[key]
 	if exists && !isExpired(item) {
 		return false, nil
 	}
 	expiration, persistent := util.SetExpiration(c.defaultTTL, c.maxTTL, int64(expiration.Seconds()))
-	c.KVMap[key] = data.CacheItem{
+	c.shardedMap[index].kvmap[key] = data.CacheItem{
 		Value:      value,
 		Expiration: time.Now().Add(expiration),
 		Persistent: persistent,
 	}
 	// Write to AOF
-	c.setItemLog(key, c.KVMap[key])
+	c.setItemLog(key, c.shardedMap[index].kvmap[key])
 	return true, nil
 }
 
 func (c *Cache) GetSet(key string, value []byte) ([]byte, error) {
-	c.Lock.Lock()
-	defer c.Lock.Unlock()
-	item, exists := c.KVMap[key]
+	index := c.getShardedIndex(key)
+	c.shardedMap[index].lock.Lock()
+	defer c.shardedMap[index].lock.Unlock()
+	item, exists := c.shardedMap[index].kvmap[key]
 	var oldValue []byte
 	var expiration time.Time = time.Now().Add(time.Duration(c.defaultTTL) * time.Second)
 	var persistent bool = false
@@ -292,45 +331,58 @@ func (c *Cache) GetSet(key string, value []byte) ([]byte, error) {
 		persistent = item.Persistent
 		expiration = item.Expiration
 	}
-	c.KVMap[key] = data.CacheItem{
+	c.shardedMap[index].kvmap[key] = data.CacheItem{
 		Value:      value,
 		Expiration: expiration,
 		Persistent: persistent,
 	}
 	// Write to AOF
-	c.setItemLog(key, c.KVMap[key])
+	c.setItemLog(key, c.shardedMap[index].kvmap[key])
 	return oldValue, nil
 }
 
 func (c *Cache) MGet(keys []string) map[string][]byte {
-	c.Lock.RLock()
-	defer c.Lock.RUnlock()
+	indexList := util.GetIndexListNoDup(keys, c.getShardedIndex)
+	for _, index := range indexList {
+		c.shardedMap[index].lock.RLock()
+	}
 	result := make(map[string][]byte)
 	for _, key := range keys {
-		item, exists := c.KVMap[key]
-		if exists {
-			if isExpired(item) {
-				continue
-			}
+		index := c.getShardedIndex(key)
+		item, exists := c.shardedMap[index].kvmap[key]
+		if exists && !isExpired(item) {
 			result[key] = item.Value
 		}
+	}
+	for j := len(indexList) - 1; j >= 0; j-- {
+		c.shardedMap[indexList[j]].lock.RUnlock()
 	}
 	return result
 }
 
 func (c *Cache) MSet(kv map[string][]byte, expiration time.Duration) error {
-	c.Lock.Lock()
-	defer c.Lock.Unlock()
+	keys := make([]string, 0, len(kv))
+	for key := range kv {
+		keys = append(keys, key)
+	}
+	indexList := util.GetIndexListNoDup(keys, c.getShardedIndex)
+	for _, index := range indexList {
+		c.shardedMap[index].lock.Lock()
+	}
 	expiration, persistent := util.SetExpiration(c.defaultTTL, c.maxTTL, int64(expiration.Seconds()))
 	expirationTime := time.Now().Add(expiration)
 	for key, value := range kv {
-		c.KVMap[key] = data.CacheItem{
+		index := c.getShardedIndex(key)
+		c.shardedMap[index].kvmap[key] = data.CacheItem{
 			Value:      value,
 			Expiration: expirationTime,
 			Persistent: persistent,
 		}
 		// Write to AOF
-		c.setItemLog(key, c.KVMap[key])
+		c.setItemLog(key, c.shardedMap[index].kvmap[key])
+	}
+	for j := len(indexList) - 1; j >= 0; j-- {
+		c.shardedMap[indexList[j]].lock.Unlock()
 	}
 	return nil
 }
@@ -361,4 +413,44 @@ func (c *Cache) delItemLog(key string) {
 			Key:    key,
 		})
 	}
+}
+
+func (c *Cache) expireSampling() {
+	indexList := util.GetRandomShardIndex(shardCount, sampleDeleteKeyCount)
+	for _, index := range indexList {
+		c.shardedMap[index].lock.Lock()
+	}
+	checkCount := 0
+	breakFlag := false
+	for _, i := range indexList {
+		for key, item := range c.shardedMap[i].kvmap {
+			if isExpired(item) {
+				delete(c.shardedMap[i].kvmap, key)
+				c.delItemLog(key)
+			}
+			checkCount++
+			if checkCount >= sampleDeleteKeyCount {
+				breakFlag = true
+				break
+			}
+		}
+		if breakFlag {
+			break
+		}
+	}
+	for j := len(indexList) - 1; j >= 0; j-- {
+		c.shardedMap[indexList[j]].lock.Unlock()
+	}
+}
+
+func (c *Cache) snapMap() {
+	c.KVMap = make(map[string]data.CacheItem)
+	for i := 0; i < shardCount; i++ {
+		c.shardedMap[i].lock.RLock()
+		for key, item := range c.shardedMap[i].kvmap {
+			c.KVMap[key] = item
+		}
+		c.shardedMap[i].lock.RUnlock()
+	}
+	c.persistentLogger.TriggerSnap(c.KVMap)
 }
