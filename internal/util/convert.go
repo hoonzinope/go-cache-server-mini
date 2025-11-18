@@ -51,16 +51,23 @@ func GetRandomShardIndex(shardCount int, count int) []int {
 	}
 	seed := time.Now().UnixNano()
 	r := rand.New(rand.NewSource(seed))
-	indexes := make([]int, 0, count)
-	for i := 0; i < count; i++ {
-		rint := r.Intn(shardCount)
-		if contains := slices.Contains(indexes, rint); contains {
-			i--
-			continue
-		}
-		indexes = append(indexes, rint)
-	}
+	p := r.Perm(shardCount)
+	indexes := p[:count]
 	// sort indexes to have consistent order
 	slices.Sort(indexes)
 	return indexes
+}
+
+func GetIndexListNoDup(keys []string, getIndexFunc func(string) int) []int {
+	indexList := make([]int, 0, len(keys))
+	indexSet := make(map[int]struct{})
+	for _, key := range keys {
+		index := getIndexFunc(key)
+		if _, exists := indexSet[index]; !exists {
+			indexSet[index] = struct{}{}
+			indexList = append(indexList, index)
+		}
+	}
+	slices.Sort(indexList)
+	return indexList
 }

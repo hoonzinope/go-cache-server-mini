@@ -7,7 +7,6 @@ import (
 	"go-cache-server-mini/internal/core/data"
 	"go-cache-server-mini/internal/core/persistentLogger"
 	"go-cache-server-mini/internal/util"
-	"slices"
 	"sync"
 	"time"
 )
@@ -169,21 +168,14 @@ func (c *Cache) Exists(key string) bool {
 }
 
 func (c *Cache) Keys() []string {
-	for i := 0; i < shardCount; i++ {
-		c.shardedMap[i].lock.RLock()
-	}
-
 	var keys []string
 	for i := 0; i < shardCount; i++ {
+		c.shardedMap[i].lock.RLock()
 		for key, item := range c.shardedMap[i].kvmap {
-			if isExpired(item) {
-				continue
+			if !isExpired(item) {
+				keys = append(keys, key)
 			}
-			keys = append(keys, key)
 		}
-	}
-
-	for i := shardCount - 1; i >= 0; i-- {
 		c.shardedMap[i].lock.RUnlock()
 	}
 
@@ -193,15 +185,11 @@ func (c *Cache) Keys() []string {
 func (c *Cache) Flush() error {
 	for i := 0; i < shardCount; i++ {
 		c.shardedMap[i].lock.Lock()
-	}
-	for i := 0; i < shardCount; i++ {
 		for key := range c.shardedMap[i].kvmap {
 			// Write to AOF
 			c.delItemLog(key)
 		}
 		c.shardedMap[i].kvmap = make(map[string]data.CacheItem)
-	}
-	for i := shardCount - 1; i >= 0; i-- {
 		c.shardedMap[i].lock.Unlock()
 	}
 	return nil
@@ -361,12 +349,7 @@ func (c *Cache) GetSet(key string, value []byte) ([]byte, error) {
 }
 
 func (c *Cache) MGet(keys []string) map[string][]byte {
-	indexList := make([]int, 0, len(keys))
-	for _, key := range keys {
-		indexList = append(indexList, c.getShardedIndex(key))
-	}
-	indexList = slices.Compact(indexList)
-	slices.Sort(indexList)
+	indexList := util.GetIndexListNoDup(keys, c.getShardedIndex)
 	for _, index := range indexList {
 		c.shardedMap[index].lock.RLock()
 	}
@@ -385,12 +368,11 @@ func (c *Cache) MGet(keys []string) map[string][]byte {
 }
 
 func (c *Cache) MSet(kv map[string][]byte, expiration time.Duration) error {
-	indexList := make([]int, 0, len(kv))
+	keys := make([]string, 0, len(kv))
 	for key := range kv {
-		indexList = append(indexList, c.getShardedIndex(key))
+		keys = append(keys, key)
 	}
-	indexList = slices.Compact(indexList)
-	slices.Sort(indexList)
+	indexList := util.GetIndexListNoDup(keys, c.getShardedIndex)
 	for _, index := range indexList {
 		c.shardedMap[index].lock.Lock()
 	}
@@ -470,7 +452,7 @@ func (c *Cache) expireSampling() {
 
 func (c *Cache) snapMap() {
 	for i := 0; i < shardCount; i++ {
-		c.shardedMap[i].lock.Lock()
+		c.shardedMap[i].lock.RLock()
 	}
 	c.KVMap = make(map[string]data.CacheItem)
 	for i := 0; i < shardCount; i++ {
@@ -479,7 +461,7 @@ func (c *Cache) snapMap() {
 		}
 	}
 	for i := shardCount - 1; i >= 0; i-- {
-		c.shardedMap[i].lock.Unlock()
+		c.shardedMap[i].lock.RUnlock()
 	}
 	c.persistentLogger.TriggerSnap(c.KVMap)
 }
