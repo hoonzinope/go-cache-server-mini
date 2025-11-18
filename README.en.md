@@ -1,7 +1,14 @@
 # go-cache-server-mini
+[한국어 README](README.md)
 
 ## Overview
 `go-cache-server-mini` is a lightweight in-memory cache server that exposes Redis-like primitives through a small Gin-based HTTP API. It is purpose-built for workshops, demos, and integration tests that need a disposable stateful endpoint without external dependencies.
+
+## What's New
+- **Sharded cache core**: Keys are distributed across 256 shards using FNV hashing, and each shard has its own RWMutex. `MGet/MSet` lock each shard only once to keep critical sections small.
+- **Sampled expiration worker**: Every second a background worker samples up to 20 keys from random shards to evict expired entries, keeping the cleanup cost bounded even with many keys.
+- **Optional file persistence**: With `persistent.type: file`, the server keeps an append-only log (`cache.aof`) and snapshots (`cache.snap`) under `persistent_data`. Startup loads the snapshot first and replays the AOF; shutdown closes channels so pending flushes complete.
+- **Snapshot/AOF strategy**: Snapshots fire every 60s, pausing AOF writes while a temp file swap happens. The AOF batches writes (every 100ms or 1000 commands) before hitting disk.
 
 ## Features
 - **Broader endpoint coverage**: Beyond basic `set/get/del`, the server ships with `setnx`, `getset`, `mget`, and `mset` so you can model simple workflows and bulk operations.
