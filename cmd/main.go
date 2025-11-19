@@ -6,6 +6,8 @@ import (
 	"go-cache-server-mini/internal/api"
 	"go-cache-server-mini/internal/config"
 	"go-cache-server-mini/internal/core"
+	"go-cache-server-mini/internal/distributed/adapter"
+	"go-cache-server-mini/internal/distributed/router"
 	"log"
 	"os"
 	"os/signal"
@@ -50,6 +52,11 @@ func start(errChan chan<- error) {
 	if createCacheErr != nil {
 		log.Fatalf("Failed to create cache: %v", createCacheErr)
 	}
+
+	localAdapter := adapter.NewLocalAdapter(cache)
+	nodeRouter := router.NewNodeRouter(ctx, localAdapter)
+	cacheDistributor := router.NewDistributor(nodeRouter)
+
 	// Start the API server
 	if config.HTTP.Enabled {
 		wg.Add(1)
@@ -57,7 +64,7 @@ func start(errChan chan<- error) {
 			defer wg.Done()
 			addr := config.HTTP.Address
 			fmt.Println("Starting API server on", addr)
-			if err := api.StartAPIServer(ctx, addr, cache); err != nil {
+			if err := api.StartAPIServer(ctx, addr, cacheDistributor); err != nil {
 				errChan <- err
 			}
 		}()

@@ -16,13 +16,15 @@ import (
 
 	"go-cache-server-mini/internal/config"
 	"go-cache-server-mini/internal/core"
+	"go-cache-server-mini/internal/distributed/adapter"
+	"go-cache-server-mini/internal/distributed/router"
 )
 
 func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-func newHandlerTestCache(t *testing.T) core.CacheInterface {
+func newHandlerTestCache(t *testing.T) router.DistributorInterface {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	config := config.LoadTestConfig()
@@ -31,10 +33,13 @@ func newHandlerTestCache(t *testing.T) core.CacheInterface {
 		cancel()
 	})
 	core, err := core.NewCache(ctx, config)
+	localAdapter := adapter.NewLocalAdapter(core)
+	nodeRouter := router.NewNodeRouter(ctx, localAdapter)
+	cacheDistributor := router.NewDistributor(nodeRouter)
 	if err != nil {
 		t.Fatalf("Failed to create cache: %v", err)
 	}
-	return core
+	return cacheDistributor
 }
 
 func newTestContext(method, target string, body []byte) (*gin.Context, *httptest.ResponseRecorder) {
@@ -72,8 +77,9 @@ func TestSetHandler(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
-	if _, ok := cache.Get("foo"); !ok {
-		t.Fatalf("expected key to be set in cache")
+	_, ok, err := cache.Get("foo")
+	if err != nil || !ok {
+		t.Fatalf("expected key to be set in cache, but got ok=%v, err=%v", ok, err)
 	}
 }
 
@@ -119,7 +125,8 @@ func TestDelHandler(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
-	if cache.Exists("foo") {
+	exists, err := cache.Exists("foo")
+	if exists || err != nil {
 		t.Fatalf("expected key to be deleted")
 	}
 }
@@ -192,7 +199,11 @@ func TestFlushHandler(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
-	if len(cache.Keys()) != 0 {
+	keys, err := cache.Keys()
+	if err != nil {
+		t.Fatalf("Keys returned error: %v", err)
+	}
+	if len(keys) != 0 {
 		t.Fatalf("expected cache to be empty after flush")
 	}
 }
@@ -211,7 +222,10 @@ func TestExpireHandler(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
-	ttl, ok := cache.TTL("ttl")
+	ttl, ok, err := cache.TTL("ttl")
+	if err != nil {
+		t.Fatalf("TTL returned error: %v", err)
+	}
 	if !ok || ttl <= 0 || ttl > time.Second {
 		t.Fatalf("expected ttl to be updated to ~1s, got %v", ttl)
 	}
@@ -256,7 +270,10 @@ func TestPersistHandler(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
-	ttl, ok := cache.TTL("persist")
+	ttl, ok, err := cache.TTL("persist")
+	if err != nil {
+		t.Fatalf("TTL returned error: %v", err)
+	}
 	if !ok || ttl != -1 {
 		t.Fatalf("expected ttl -1 after persist, got %v", ttl)
 	}
@@ -370,7 +387,10 @@ func TestGetSetHandler(t *testing.T) {
 		t.Fatalf("expected old value old, got %s", old)
 	}
 
-	value, _ := cache.Get("swap")
+	value, _, err := cache.Get("swap")
+	if err != nil {
+		t.Fatalf("failed to get value from cache: %v", err)
+	}
 	if string(value) != `"new"` {
 		t.Fatalf("expected cache to hold new value, got %s", value)
 	}
@@ -426,10 +446,10 @@ func TestMSetHandler(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
 
-	if value, ok := cache.Get("a"); !ok || string(value) != `"1"` {
-		t.Fatalf("expected key a to be set, got %s ok=%v", value, ok)
+	if value, ok, err := cache.Get("a"); !ok || err != nil || string(value) != `"1"` {
+		t.Fatalf("expected key a to be set, got %s ok=%v err=%v", value, ok, err)
 	}
-	if value, ok := cache.Get("b"); !ok || string(value) != `"2"` {
-		t.Fatalf("expected key b to be set, got %s ok=%v", value, ok)
+	if value, ok, err := cache.Get("b"); !ok || err != nil || string(value) != `"2"` {
+		t.Fatalf("expected key b to be set, got %s ok=%v err=%v", value, ok, err)
 	}
 }

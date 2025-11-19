@@ -3,14 +3,14 @@ package handler
 import (
 	"go-cache-server-mini/internal"
 	"go-cache-server-mini/internal/api/dto"
-	"go-cache-server-mini/internal/core"
+	"go-cache-server-mini/internal/distributed/router"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
 type TTLHandler struct {
-	Cache core.CacheInterface
+	Cache router.DistributorInterface
 }
 
 func (h *TTLHandler) TTL(c *gin.Context) {
@@ -20,7 +20,11 @@ func (h *TTLHandler) TTL(c *gin.Context) {
 		return
 	}
 
-	ttl, exists := h.Cache.TTL(req.Key)
+	ttl, exists, err := h.Cache.TTL(req.Key)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": internal.ErrNotFound.Error()})
 		return

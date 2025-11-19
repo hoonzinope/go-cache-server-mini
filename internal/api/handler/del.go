@@ -3,14 +3,14 @@ package handler
 import (
 	"go-cache-server-mini/internal"
 	"go-cache-server-mini/internal/api/dto"
-	"go-cache-server-mini/internal/core"
+	"go-cache-server-mini/internal/distributed/router"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
 type DelHandler struct {
-	Cache core.CacheInterface
+	Cache router.DistributorInterface
 }
 
 func (h *DelHandler) Del(c *gin.Context) {

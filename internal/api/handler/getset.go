@@ -3,14 +3,14 @@ package handler
 import (
 	"go-cache-server-mini/internal"
 	"go-cache-server-mini/internal/api/dto"
-	"go-cache-server-mini/internal/core"
+	"go-cache-server-mini/internal/distributed/router"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
 type GetSetHandler struct {
-	Cache core.CacheInterface
+	Cache router.DistributorInterface
 }
 
 func (h *GetSetHandler) GetSet(c *gin.Context) {
