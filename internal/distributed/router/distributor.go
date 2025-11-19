@@ -90,15 +90,12 @@ func (d *Distributor) Keys() ([]string, error) {
 }
 
 func (d *Distributor) Flush() error {
-	var firstErr error
 	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter != nil {
-		if err := localAdapter.ClearCache(); err != nil {
-			firstErr = err
-		}
+	if localAdapter == nil {
+		return errors.New("local adapter not found")
 	}
 	// TODO: Consider flushing other adapters if needed
-	return firstErr
+	return localAdapter.ClearCache()
 }
 
 func (d *Distributor) TTL(key string) (time.Duration, bool, error) {

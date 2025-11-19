@@ -78,8 +78,8 @@ func TestSetHandler(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
 	_, ok, err := cache.Get("foo")
-	if !ok {
-		t.Fatalf("expected key to be set in cache: %v", err)
+	if err != nil || !ok {
+		t.Fatalf("expected key to be set in cache, but got ok=%v, err=%v", ok, err)
 	}
 }
 
