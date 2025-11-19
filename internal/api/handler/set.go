@@ -3,7 +3,7 @@ package handler
 import (
 	"go-cache-server-mini/internal"
 	"go-cache-server-mini/internal/api/dto"
-	"go-cache-server-mini/internal/core"
+	"go-cache-server-mini/internal/distributed/router"
 	"log"
 	"net/http"
 	"time"
@@ -12,7 +12,7 @@ import (
 )
 
 type SetHandler struct {
-	Cache core.CacheInterface
+	Cache router.DistributorInterface
 }
 
 func (h *SetHandler) Set(c *gin.Context) {

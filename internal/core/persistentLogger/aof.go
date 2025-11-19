@@ -52,6 +52,9 @@ func (a *AOF) loadFromFile(fileUtil *util.FileUtil, data map[string]data.CacheIt
 		return data, err
 	}
 	for _, line := range lines {
+		if line == "" {
+			continue
+		}
 		cmd, key, item, parseErr := a.parser.ParseStringToCMD(line)
 		if parseErr != nil {
 			return nil, parseErr

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"go-cache-server-mini/internal"
 	"go-cache-server-mini/internal/api/dto"
-	"go-cache-server-mini/internal/core"
+	"go-cache-server-mini/internal/distributed/router"
 	"net/http"
 	"time"
 
@@ -12,7 +12,7 @@ import (
 )
 
 type ExpireHandler struct {
-	Cache core.CacheInterface
+	Cache router.DistributorInterface
 }
 
 func (h *ExpireHandler) Expire(c *gin.Context) {

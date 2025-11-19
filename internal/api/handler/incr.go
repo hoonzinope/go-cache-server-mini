@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"go-cache-server-mini/internal"
 	"go-cache-server-mini/internal/api/dto"
-	"go-cache-server-mini/internal/core"
+	"go-cache-server-mini/internal/distributed/router"
 	"go-cache-server-mini/internal/util"
 	"log"
 	"net/http"
@@ -13,7 +13,7 @@ import (
 )
 
 type IncrHandler struct {
-	Cache core.CacheInterface
+	Cache router.DistributorInterface
 }
 
 func (h *IncrHandler) Incr(c *gin.Context) {
