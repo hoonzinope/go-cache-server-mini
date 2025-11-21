@@ -12,7 +12,7 @@ import (
 type NodeRouter struct {
 	replicas    int      // number of virtual nodes per physical node
 	backupNodes int      // number of backup nodes
-	nodeMap     sync.Map // node-ip to adapter mapping
+	nodeMap     sync.Map // hash to adapter mapping
 	hashes      []uint32 // sorted hash ring
 	// localAdapter adapter.AdapterInterface
 	mu sync.RWMutex
@@ -78,11 +78,19 @@ func (nr *NodeRouter) GetAllAdapters() ([]adapter.AdapterInterface, error) {
 	nr.mu.RLock()
 	defer nr.mu.RUnlock()
 
-	adapters := []adapter.AdapterInterface{}
-	nr.nodeMap.Range(func(_, value any) bool {
-		adapters = append(adapters, value.(adapter.AdapterInterface))
-		return true
-	})
+	uniqueAdapters := make(map[adapter.AdapterInterface]struct{})
+	for _, hash := range nr.hashes {
+		adapterInterface, ok := nr.nodeMap.Load(hash)
+		if !ok {
+			continue
+		}
+		adapterInst := adapterInterface.(adapter.AdapterInterface)
+		uniqueAdapters[adapterInst] = struct{}{}
+	}
+	adapters := make([]adapter.AdapterInterface, 0, len(uniqueAdapters))
+	for adapterInst := range uniqueAdapters {
+		adapters = append(adapters, adapterInst)
+	}
 	return adapters, nil
 }
 
@@ -103,14 +111,18 @@ func (nr *NodeRouter) RemoveAdapter(nodeIP string) error {
 	nr.mu.Lock()
 	defer nr.mu.Unlock()
 
+	hashToRemove := make(map[uint32]struct{}, nr.replicas)
 	for i := 0; i < nr.replicas; i++ {
 		hash := util.Fnv32aHash(fmt.Sprintf("%s-%d", nodeIP, i))
 		nr.nodeMap.Delete(hash)
-		// Remove from hashes slice
-		index, found := slices.BinarySearch(nr.hashes, hash)
-		if found {
-			nr.hashes = append(nr.hashes[:index], nr.hashes[index+1:]...)
+		hashToRemove[hash] = struct{}{}
+	}
+	newHashes := make([]uint32, 0, len(nr.hashes)-len(hashToRemove))
+	for _, hash := range nr.hashes {
+		if _, found := hashToRemove[hash]; !found {
+			newHashes = append(newHashes, hash)
 		}
 	}
+	nr.hashes = newHashes
 	return nil
 }
