@@ -4,11 +4,16 @@ import "time"
 
 type RemoteAdapter struct {
 	// Implementation details for remote adapter
+	remoteIp string
 }
 
 // NewRemoteAdapter creates a new instance of RemoteAdapter
-func NewRemoteAdapter() *RemoteAdapter {
-	return &RemoteAdapter{}
+func NewRemoteAdapter(remoteIp string) (*RemoteAdapter, error) {
+	return &RemoteAdapter{remoteIp: remoteIp}, nil
+}
+
+func (ra *RemoteAdapter) GetNodeIP() string {
+	return ra.remoteIp
 }
 
 func (ra *RemoteAdapter) SetItem(key string, value []byte, expiration time.Duration) error {

@@ -54,7 +54,8 @@ func start(errChan chan<- error) {
 	}
 
 	localAdapter := adapter.NewLocalAdapter(cache)
-	nodeRouter := router.NewNodeRouter(ctx, localAdapter)
+	clusterManager := router.NewClusterManager(config.Distributed.SwarmServiceName)
+	nodeRouter := router.NewNodeRouter(ctx, localAdapter, clusterManager, *config)
 	cacheDistributor := router.NewDistributor(nodeRouter)
 
 	// Start the API server

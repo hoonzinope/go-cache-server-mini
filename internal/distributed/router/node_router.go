@@ -3,44 +3,105 @@ package router
 import (
 	"context"
 	"fmt"
+	"go-cache-server-mini/internal/config"
 	"go-cache-server-mini/internal/distributed/adapter"
 	"go-cache-server-mini/internal/util"
 	"slices"
 	"sync"
+	"time"
 )
 
 type NodeRouter struct {
-	replicas    int      // number of virtual nodes per physical node
-	backupNodes int      // number of backup nodes
-	nodeMap     sync.Map // hash to adapter mapping
-	hashes      []uint32 // sorted hash ring
-	// localAdapter adapter.AdapterInterface
-	mu sync.RWMutex
+	ctx            context.Context
+	replicas       int                      // number of virtual nodes per physical node
+	backupNodes    int                      // number of backup nodes
+	nodeIpSet      map[string]struct{}      // set of node IPs
+	nodeMap        sync.Map                 // hash to adapter mapping
+	hashes         []uint32                 // sorted hash ring
+	localIp        string                   // local node IP
+	localAdapter   adapter.AdapterInterface // local adapter
+	mu             sync.RWMutex
+	clusterManager *ClusterManager
+	updateInterval int64 // in seconds
 }
 
-func NewNodeRouter(ctx context.Context, localAdapter adapter.AdapterInterface) *NodeRouter {
-	nodeRouter := &NodeRouter{
-		replicas:    3,          // number of virtual nodes per physical node, TODO : make it configurable
-		backupNodes: 0,          // No backup nodes for now, TODO: implement later
-		nodeMap:     sync.Map{}, // node-ip to adapter mapping
-		// localAdapter: localAdapter,
-		hashes: []uint32{},
+func NewNodeRouter(ctx context.Context, localAdapter adapter.AdapterInterface, clusterManager *ClusterManager, config config.Config) *NodeRouter {
+	distributed_enabled := config.Distributed.Enabled
+	update_interval := config.Distributed.UpdateInterval
+	replication_factor := config.Distributed.ReplicationFactor
+	backup_nodes := config.Distributed.BackupNodes
+
+	localIp, localIpReturnErr := clusterManager.GetLocalNodeIP()
+	if localIpReturnErr != nil {
+		panic(fmt.Sprintf("failed to get local node IP: %v", localIpReturnErr))
 	}
-	nodeRouter.AddAdapter("local-node", localAdapter)
+
+	nodeRouter := &NodeRouter{
+		ctx:            ctx,
+		replicas:       replication_factor,        // number of virtual nodes per physical node
+		backupNodes:    backup_nodes,              // backup nodes, 0 means no backup
+		nodeMap:        sync.Map{},                // node-ip to adapter mapping
+		localIp:        localIp,                   // local node IP
+		localAdapter:   localAdapter,              // local adapter
+		nodeIpSet:      make(map[string]struct{}), // set of node IPs
+		hashes:         []uint32{},                // sorted hash ring
+		clusterManager: clusterManager,            // cluster manager
+		updateInterval: update_interval,           // in seconds
+	}
+	nodeRouter.addLocalAdapter(localIp, localAdapter)
+	if distributed_enabled {
+		go nodeRouter.updateRemoteNodes()
+	}
 	return nodeRouter
 }
 
-func (nr *NodeRouter) GetLocalAdapter() adapter.AdapterInterface {
-	nr.mu.RLock()
-	defer nr.mu.RUnlock()
-
-	node_name := fmt.Sprintf("%s-%d", "local-node", 0)
-	hash := util.Fnv32aHash(node_name)
-	local_adapter, ok := nr.nodeMap.Load(hash)
-	if !ok {
-		return nil
+func (nr *NodeRouter) updateRemoteNodes() {
+	ticker := time.NewTicker(time.Duration(nr.updateInterval) * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-nr.ctx.Done():
+			return
+		case <-ticker.C:
+			remoteIPs, err := nr.clusterManager.GetRemoteNodeIPs()
+			if err != nil {
+				fmt.Printf("failed to get remote node IPs: %v\n", err)
+				continue
+			}
+			nr._updateRemoteNodes(remoteIPs)
+		}
 	}
-	return local_adapter.(adapter.AdapterInterface)
+}
+
+func (nr *NodeRouter) _updateRemoteNodes(remoteIPs []string) {
+	nr.mu.Lock()
+	defer nr.mu.Unlock()
+
+	// Add new remote nodes
+	for _, ip := range remoteIPs {
+		if _, exists := nr.nodeIpSet[ip]; !exists {
+			err := nr.addRemoteAdapter(ip)
+			if err != nil {
+				fmt.Printf("failed to add remote adapter for IP %s: %v\n", ip, err)
+			}
+		}
+	}
+	for ip := range nr.nodeIpSet {
+		if ip == nr.localIp {
+			continue
+		}
+		found := slices.Contains(remoteIPs, ip)
+		if !found {
+			err := nr.removeRemoteAdapter(ip)
+			if err != nil {
+				fmt.Printf("failed to remove adapter for IP %s: %v\n", ip, err)
+			}
+		}
+	}
+}
+
+func (nr *NodeRouter) GetLocalAdapter() adapter.AdapterInterface {
+	return nr.localAdapter
 }
 
 func (nr *NodeRouter) GetAdapters(key string) ([]adapter.AdapterInterface, error) {
@@ -48,13 +109,13 @@ func (nr *NodeRouter) GetAdapters(key string) ([]adapter.AdapterInterface, error
 	defer nr.mu.RUnlock()
 
 	adapters := []adapter.AdapterInterface{}
-	if len(nr.hashes) == 0 {
+	if len(nr.hashes) == 0 || nr.backupNodes == 0 {
 		return adapters, nil
 	}
 	hash := util.Fnv32aHash(key)
 	// Find the nodes >= hash
 	idx, _ := slices.BinarySearch(nr.hashes, hash)
-	uniqueAdapters := make(map[adapter.AdapterInterface]struct{})
+	uniqueNode := make(map[adapter.AdapterInterface]struct{})
 	resultAdapters := make([]adapter.AdapterInterface, 0, nr.backupNodes+1)
 	// Get primary + backup nodes
 	for i := 0; i < len(nr.hashes) && len(resultAdapters) < nr.backupNodes+1; i++ {
@@ -64,12 +125,14 @@ func (nr *NodeRouter) GetAdapters(key string) ([]adapter.AdapterInterface, error
 		if !ok {
 			continue
 		}
-		adapterInst := adapterInterface.(adapter.AdapterInterface)
-		if _, visited := uniqueAdapters[adapterInst]; visited {
+		node, ok := adapterInterface.(adapter.AdapterInterface)
+		if !ok {
 			continue
 		}
-		uniqueAdapters[adapterInst] = struct{}{}
-		resultAdapters = append(resultAdapters, adapterInst)
+		if _, exists := uniqueNode[node]; !exists {
+			uniqueNode[node] = struct{}{}
+			resultAdapters = append(resultAdapters, node)
+		}
 	}
 	return resultAdapters, nil
 }
@@ -94,7 +157,7 @@ func (nr *NodeRouter) GetAllAdapters() ([]adapter.AdapterInterface, error) {
 	return adapters, nil
 }
 
-func (nr *NodeRouter) AddAdapter(nodeIP string, adapter adapter.AdapterInterface) error {
+func (nr *NodeRouter) addLocalAdapter(nodeIP string, adapter adapter.AdapterInterface) error {
 	nr.mu.Lock()
 	defer nr.mu.Unlock()
 
@@ -104,12 +167,32 @@ func (nr *NodeRouter) AddAdapter(nodeIP string, adapter adapter.AdapterInterface
 		nr.hashes = append(nr.hashes, hash)
 	}
 	slices.Sort(nr.hashes)
+	nr.nodeIpSet[nodeIP] = struct{}{}
 	return nil
 }
 
-func (nr *NodeRouter) RemoveAdapter(nodeIP string) error {
-	nr.mu.Lock()
-	defer nr.mu.Unlock()
+func (nr *NodeRouter) addRemoteAdapter(nodeIP string) error {
+	if _, exists := nr.nodeIpSet[nodeIP]; !exists {
+		remoteAdapter, err := adapter.NewRemoteAdapter(nodeIP)
+		if err != nil {
+			return err
+		}
+		for i := 0; i < nr.replicas; i++ {
+			hash := util.Fnv32aHash(fmt.Sprintf("%s-%d", nodeIP, i))
+			nr.nodeMap.Store(hash, remoteAdapter)
+			nr.hashes = append(nr.hashes, hash)
+		}
+		slices.Sort(nr.hashes)
+		nr.nodeIpSet[nodeIP] = struct{}{}
+	}
+
+	return nil
+}
+
+func (nr *NodeRouter) removeRemoteAdapter(nodeIP string) error {
+	if _, exists := nr.nodeIpSet[nodeIP]; !exists {
+		return fmt.Errorf("node IP %s not found", nodeIP)
+	}
 
 	hashToRemove := make(map[uint32]struct{}, nr.replicas)
 	for i := 0; i < nr.replicas; i++ {
@@ -124,5 +207,6 @@ func (nr *NodeRouter) RemoveAdapter(nodeIP string) error {
 		}
 	}
 	nr.hashes = newHashes
+	delete(nr.nodeIpSet, nodeIP)
 	return nil
 }
