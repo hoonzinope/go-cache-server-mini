@@ -8,8 +8,8 @@ type RemoteAdapter struct {
 }
 
 // NewRemoteAdapter creates a new instance of RemoteAdapter
-func NewRemoteAdapter(remoteIp string) (*RemoteAdapter, error) {
-	return &RemoteAdapter{remoteIp: remoteIp}, nil
+func NewRemoteAdapter(remoteIp string) *RemoteAdapter {
+	return &RemoteAdapter{remoteIp: remoteIp}
 }
 
 func (ra *RemoteAdapter) GetNodeIP() string {
