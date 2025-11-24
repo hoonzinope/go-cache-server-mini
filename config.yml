@@ -9,3 +9,11 @@ ttl:
 http:
   enabled: true
   address: ":8080"
+
+# Distributed caching configuration with docker swarm
+distributed:
+  enabled: false
+  swarm_service_name: "go-cache-service"
+  update_interval: 10  # in seconds
+  replication_factor: 3
+  backup_nodes: 0

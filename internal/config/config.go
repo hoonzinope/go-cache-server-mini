@@ -22,10 +22,19 @@ type HTTPConfig struct {
 	Address string `yaml:"address"`
 }
 
+type DistributedConfig struct {
+	Enabled           bool   `yaml:"enabled"`
+	SwarmServiceName  string `yaml:"swarm_service_name"`
+	UpdateInterval    int64  `yaml:"update_interval"` // in seconds
+	ReplicationFactor int    `yaml:"replication_factor"`
+	BackupNodes       int    `yaml:"backup_nodes"`
+}
+
 type Config struct {
-	Persistent PersistentConfig `yaml:"persistent"`
-	TTL        TTLConfig        `yaml:"ttl"`
-	HTTP       HTTPConfig       `yaml:"http"`
+	Persistent  PersistentConfig  `yaml:"persistent"`
+	TTL         TTLConfig         `yaml:"ttl"`
+	HTTP        HTTPConfig        `yaml:"http"`
+	Distributed DistributedConfig `yaml:"distributed"`
 }
 
 func LoadConfig(configFilePath string) (*Config, error) {
@@ -57,6 +66,13 @@ func LoadTestConfig() *Config {
 		HTTP: HTTPConfig{
 			Enabled: true,
 			Address: ":8080",
+		},
+		Distributed: DistributedConfig{
+			Enabled:           false,
+			SwarmServiceName:  "go-cache-service",
+			UpdateInterval:    10,
+			ReplicationFactor: 3,
+			BackupNodes:       0,
 		},
 	}
 }
