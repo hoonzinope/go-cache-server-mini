@@ -33,6 +33,9 @@ func newHandlerTestCache(t *testing.T) router.DistributorInterface {
 		cancel()
 	})
 	core, err := core.NewCache(ctx, config)
+	if err != nil {
+		t.Fatalf("Failed to create core cache: %v", err)
+	}
 	localAdapter := adapter.NewLocalAdapter(core)
 	clusterManager := router.NewClusterManager(config.Distributed.SwarmServiceName)
 	nodeRouter, err := router.NewNodeRouter(ctx, localAdapter, clusterManager, *config)
@@ -40,9 +43,6 @@ func newHandlerTestCache(t *testing.T) router.DistributorInterface {
 		t.Fatalf("Failed to create node router: %v", err)
 	}
 	cacheDistributor := router.NewDistributor(nodeRouter)
-	if err != nil {
-		t.Fatalf("Failed to create cache: %v", err)
-	}
 	return cacheDistributor
 }
 
