@@ -165,6 +165,8 @@ func (nr *NodeRouter) GetAllAdapters() ([]adapter.AdapterInterface, error) {
 }
 
 func (nr *NodeRouter) addLocalAdapter(nodeIP string, adapter adapter.AdapterInterface) error {
+	nr.mu.Lock()
+	defer nr.mu.Unlock()
 	return nr.addNode(nodeIP, adapter)
 }
 
@@ -178,9 +180,6 @@ func (nr *NodeRouter) addRemoteAdapter(nodeIP string) error {
 }
 
 func (nr *NodeRouter) addNode(nodeIP string, adapter adapter.AdapterInterface) error {
-	nr.mu.Lock()
-	defer nr.mu.Unlock()
-
 	for i := 0; i < nr.replicas; i++ {
 		hash := util.Fnv32aHash(fmt.Sprintf("%s-%d", nodeIP, i))
 		nr.nodeMap.Store(hash, adapter)
