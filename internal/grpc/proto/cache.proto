@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package cache.v1;
+
+option go_package = "internal/grpc/pb";
+
+service CacheService {
+    // get
+    rpc Get(GetRequest) returns (GetResponse);
+    
+    // set
+    rpc Set(SetRequest) returns (SetResponse);
+
+    // del
+    rpc Del(DelRequest) returns (DelResponse);
+}
+
+message GetRequest {
+    string key = 1;
+}
+
+message GetResponse {
+    bytes value = 1;
+}
+
+message SetRequest {
+    string key = 1;
+    bytes value = 2;
+    int64 ttl = 3;
+}
+
+message SetResponse {
+    bool status = 1;
+}
+
+message DelRequest {
+    string key = 1;
+}
+
+message DelResponse {
+    bool status = 1; 
+}
