@@ -17,7 +17,7 @@ type GRPCCacheClient struct {
 	conn           *grpc.ClientConn
 }
 
-func NewGRPCCacheClient(ctx context.Context, remote_node_ip string, port int) (*GRPCCacheClient, error) {
+func NewGRPCCacheClient(remote_node_ip string, port int) (*GRPCCacheClient, error) {
 	url := remote_node_ip + ":" + strconv.Itoa(port)
 	conn, err := grpc.NewClient(url, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {

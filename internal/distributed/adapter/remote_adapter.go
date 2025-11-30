@@ -2,6 +2,7 @@ package adapter
 
 import (
 	"context"
+	"errors"
 	"go-cache-server-mini/internal/grpc/client"
 	"log"
 	"sync"
@@ -18,7 +19,7 @@ type RemoteAdapter struct {
 
 // NewRemoteAdapter creates a new instance of RemoteAdapter
 func NewRemoteAdapter(ctx context.Context, remoteIp string, remotePort int) (*RemoteAdapter, error) {
-	grpcClient, err := client.NewGRPCCacheClient(ctx, remoteIp, remotePort)
+	grpcClient, err := client.NewGRPCCacheClient(remoteIp, remotePort)
 	if err != nil {
 		log.Println("Failed to create GRPC client:", err)
 		return nil, err
@@ -52,7 +53,9 @@ func (ra *RemoteAdapter) Close() {
 func (ra *RemoteAdapter) SetItem(key string, value []byte, expiration time.Duration) error {
 	ra.mu.Lock()
 	defer ra.mu.Unlock()
-	err := ra.grpcClient.Set(ra.ctx, key, value, int64(expiration.Seconds()))
+	ctx, cancel := context.WithCancel(ra.ctx)
+	defer cancel() // ensure the context is cancelled to avoid leaks
+	err := ra.grpcClient.Set(ctx, key, value, int64(expiration.Seconds()))
 	if err != nil {
 		log.Println("Failed to set item in remote cache:", err)
 		return err
@@ -63,7 +66,9 @@ func (ra *RemoteAdapter) SetItem(key string, value []byte, expiration time.Durat
 func (ra *RemoteAdapter) GetItem(key string) ([]byte, bool) {
 	ra.mu.RLock()
 	defer ra.mu.RUnlock()
-	value, found, err := ra.grpcClient.Get(ra.ctx, key)
+	ctx, cancel := context.WithCancel(ra.ctx)
+	defer cancel() // ensure the context is cancelled to avoid leaks
+	value, found, err := ra.grpcClient.Get(ctx, key)
 	if err != nil {
 		log.Println("Failed to get item from remote cache:", err)
 		return nil, false
@@ -78,7 +83,9 @@ func (ra *RemoteAdapter) GetItem(key string) ([]byte, bool) {
 func (ra *RemoteAdapter) DeleteItem(key string) error {
 	ra.mu.Lock()
 	defer ra.mu.Unlock()
-	delErr := ra.grpcClient.Del(ra.ctx, key)
+	ctx, cancel := context.WithCancel(ra.ctx)
+	defer cancel() // ensure the context is cancelled to avoid leaks
+	delErr := ra.grpcClient.Del(ctx, key)
 	if delErr != nil {
 		log.Println("Failed to delete item from remote cache:", delErr)
 		return delErr
@@ -89,7 +96,9 @@ func (ra *RemoteAdapter) DeleteItem(key string) error {
 func (ra *RemoteAdapter) ExistsItem(key string) bool {
 	ra.mu.RLock()
 	defer ra.mu.RUnlock()
-	_, found, err := ra.grpcClient.Get(ra.ctx, key)
+	ctx, cancel := context.WithCancel(ra.ctx)
+	defer cancel() // ensure the context is cancelled to avoid leaks
+	_, found, err := ra.grpcClient.Get(ctx, key)
 	if err != nil {
 		log.Println("Failed to check existence of item in remote cache:", err)
 		return false
@@ -108,7 +117,7 @@ func (ra *RemoteAdapter) ListKeys() []string {
 
 func (ra *RemoteAdapter) ClearCache() error {
 	// no implementation for clearing remote cache
-	return nil
+	return errors.New("not implemented")
 }
 
 func (ra *RemoteAdapter) GetTTL(key string) (time.Duration, bool) {
@@ -118,7 +127,9 @@ func (ra *RemoteAdapter) GetTTL(key string) (time.Duration, bool) {
 func (ra *RemoteAdapter) UpdateExpiration(key string, expiration time.Duration) error {
 	ra.mu.Lock()
 	defer ra.mu.Unlock()
-	value, found, err := ra.grpcClient.Get(ra.ctx, key)
+	ctx, cancel := context.WithCancel(ra.ctx)
+	defer cancel() // ensure the context is cancelled to avoid leaks
+	value, found, err := ra.grpcClient.Get(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -135,17 +146,17 @@ func (ra *RemoteAdapter) UpdateExpiration(key string, expiration time.Duration) 
 
 func (ra *RemoteAdapter) RemoveExpiration(key string) error {
 	// no implementation for removing expiration in remote cache
-	return nil
+	return errors.New("not implemented")
 }
 
 func (ra *RemoteAdapter) Increment(key string) (int64, error) {
 	// no implementation for incrementing item in remote cache
-	return 0, nil
+	return 0, errors.New("not implemented")
 }
 
 func (ra *RemoteAdapter) Decrement(key string) (int64, error) {
 	// no implementation for decrementing item in remote cache
-	return 0, nil
+	return 0, errors.New("not implemented")
 }
 
 func (ra *RemoteAdapter) SetIfNotExists(key string, value []byte, expiration time.Duration) (bool, error) {
@@ -153,7 +164,9 @@ func (ra *RemoteAdapter) SetIfNotExists(key string, value []byte, expiration tim
 	defer ra.mu.Unlock()
 	exists := ra.ExistsItem(key)
 	if !exists {
-		err := ra.grpcClient.Set(ra.ctx, key, value, int64(expiration.Seconds()))
+		ctx, cancel := context.WithCancel(ra.ctx)
+		defer cancel() // ensure the context is cancelled to avoid leaks
+		err := ra.grpcClient.Set(ctx, key, value, int64(expiration.Seconds()))
 		if err != nil {
 			return false, err
 		}
@@ -165,11 +178,13 @@ func (ra *RemoteAdapter) SetIfNotExists(key string, value []byte, expiration tim
 func (ra *RemoteAdapter) GetAndSet(key string, value []byte) ([]byte, error) {
 	ra.mu.Lock()
 	defer ra.mu.Unlock()
-	oldValue, found, err := ra.grpcClient.Get(ra.ctx, key)
+	ctx, cancel := context.WithCancel(ra.ctx)
+	defer cancel() // ensure the context is cancelled to avoid leaks
+	oldValue, found, err := ra.grpcClient.Get(ctx, key)
 	if err != nil {
 		return nil, err
 	}
-	err = ra.grpcClient.Set(ra.ctx, key, value, 0)
+	err = ra.grpcClient.Set(ctx, key, value, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -186,5 +201,5 @@ func (ra *RemoteAdapter) GetMultiple(keys []string) map[string][]byte {
 
 func (ra *RemoteAdapter) SetMultiple(kv map[string][]byte, expiration time.Duration) error {
 	// no implementation for setting multiple items in remote cache
-	return nil
+	return errors.New("not implemented")
 }
