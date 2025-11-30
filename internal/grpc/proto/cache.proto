@@ -26,6 +26,7 @@ message GetResponse {
 message SetRequest {
     string key = 1;
     bytes value = 2;
+    // ttl int second
     int64 ttl = 3;
 }
 

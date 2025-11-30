@@ -28,6 +28,7 @@ type NodeRouter struct {
 
 func NewNodeRouter(ctx context.Context, localAdapter adapter.AdapterInterface, clusterManager *ClusterManager, config config.Config) (*NodeRouter, error) {
 	distributed_enabled := config.Distributed.Enabled
+	remote_port := config.Distributed.GRPCPort
 	update_interval := config.Distributed.UpdateInterval
 	replication_factor := config.Distributed.ReplicationFactor
 	backup_nodes := config.Distributed.BackupNodes
@@ -51,12 +52,12 @@ func NewNodeRouter(ctx context.Context, localAdapter adapter.AdapterInterface, c
 	}
 	nodeRouter.addLocalAdapter(localIp, localAdapter)
 	if distributed_enabled {
-		go nodeRouter.updateRemoteNodes()
+		go nodeRouter.updateRemoteNodes(remote_port)
 	}
 	return nodeRouter, nil
 }
 
-func (nr *NodeRouter) updateRemoteNodes() {
+func (nr *NodeRouter) updateRemoteNodes(remotePort int) {
 	ticker := time.NewTicker(time.Duration(nr.updateInterval) * time.Second)
 	defer ticker.Stop()
 	for {
@@ -69,14 +70,28 @@ func (nr *NodeRouter) updateRemoteNodes() {
 				log.Printf("failed to get remote node IPs: %v\n", err)
 				continue
 			}
-			nr._updateRemoteNodes(remoteIPs)
+			nr._updateRemoteNodes(remoteIPs, remotePort)
 		}
 	}
 }
 
-func (nr *NodeRouter) _updateRemoteNodes(remoteIPs []string) {
+func (nr *NodeRouter) _updateRemoteNodes(remoteIPs []string, remotePort int) {
 	nr.mu.Lock()
 	defer nr.mu.Unlock()
+
+	if len(remoteIPs) == 0 {
+		// Remove all remote adapters
+		for ip := range nr.nodeIpSet {
+			if ip == nr.localIp {
+				continue
+			}
+			err := nr.removeRemoteAdapter(ip)
+			if err != nil {
+				log.Printf("failed to remove adapter for IP %s: %v\n", ip, err)
+			}
+		}
+		return
+	}
 
 	// Add new remote nodes
 	remoteIPsSet := make(map[string]struct{})
@@ -86,7 +101,7 @@ func (nr *NodeRouter) _updateRemoteNodes(remoteIPs []string) {
 
 	for _, ip := range remoteIPs {
 		if _, exists := nr.nodeIpSet[ip]; !exists {
-			err := nr.addRemoteAdapter(ip)
+			err := nr.addRemoteAdapter(ip, remotePort)
 			if err != nil {
 				log.Printf("failed to add remote adapter for IP %s: %v\n", ip, err)
 			}
@@ -170,9 +185,13 @@ func (nr *NodeRouter) addLocalAdapter(nodeIP string, adapter adapter.AdapterInte
 	return nr.addNode(nodeIP, adapter)
 }
 
-func (nr *NodeRouter) addRemoteAdapter(nodeIP string) error {
+func (nr *NodeRouter) addRemoteAdapter(nodeIP string, remotePort int) error {
 	if _, exists := nr.nodeIpSet[nodeIP]; !exists {
-		remoteAdapter := adapter.NewRemoteAdapter(nodeIP)
+		remoteAdapter, err := adapter.NewRemoteAdapter(nr.ctx, nodeIP, remotePort)
+		if err != nil {
+			log.Printf("failed to create remote adapter for IP %s: %v\n", nodeIP, err)
+			return err
+		}
 		return nr.addNode(nodeIP, remoteAdapter)
 	}
 
@@ -198,6 +217,12 @@ func (nr *NodeRouter) removeRemoteAdapter(nodeIP string) error {
 	hashToRemove := make(map[uint32]struct{}, nr.replicas)
 	for i := 0; i < nr.replicas; i++ {
 		hash := util.Fnv32aHash(fmt.Sprintf("%s-%d", nodeIP, i))
+		adapterInterface, ok := nr.nodeMap.Load(hash)
+		if ok {
+			if remoteAdapter, ok := adapterInterface.(*adapter.RemoteAdapter); ok {
+				remoteAdapter.Close()
+			}
+		}
 		nr.nodeMap.Delete(hash)
 		hashToRemove[hash] = struct{}{}
 	}

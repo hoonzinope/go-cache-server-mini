@@ -4,9 +4,12 @@ import (
 	"context"
 	"go-cache-server-mini/internal/distributed/router"
 	"go-cache-server-mini/internal/grpc/pb"
+	"net"
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // another node input cache ops to local node via gRPC
@@ -16,11 +19,23 @@ type GRPCCacheServer struct {
 	distributor router.DistributorInterface
 }
 
-func StartGRPCCacheServer(ctx context.Context, distributor router.DistributorInterface) *GRPCCacheServer {
+func StartGRPCCacheServer(ctx context.Context, addr string, distributor router.DistributorInterface) error {
+
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+
 	grpcServer := grpc.NewServer()
 	grpcCacheServer := NewGRPCCacheServer(distributor)
 	pb.RegisterCacheServiceServer(grpcServer, grpcCacheServer)
-	return grpcCacheServer
+
+	go func() {
+		<-ctx.Done()
+		grpcServer.GracefulStop()
+	}()
+
+	return grpcServer.Serve(lis)
 }
 
 func NewGRPCCacheServer(distributor router.DistributorInterface) *GRPCCacheServer {
@@ -35,7 +50,7 @@ func (s *GRPCCacheServer) Get(ctx context.Context, req *pb.GetRequest) (res *pb.
 		return nil, err
 	}
 	if !found {
-		return nil, nil
+		return &pb.GetResponse{}, status.Error(codes.NotFound, "key not found")
 	}
 	resp := &pb.GetResponse{
 		Value: value,
@@ -44,11 +59,13 @@ func (s *GRPCCacheServer) Get(ctx context.Context, req *pb.GetRequest) (res *pb.
 }
 
 func (s *GRPCCacheServer) Set(ctx context.Context, req *pb.SetRequest) (res *pb.SetResponse, err error) {
-	err = s.distributor.Set(req.Key, req.Value, time.Duration(req.Ttl))
+	err = s.distributor.Set(req.Key, req.Value, time.Duration(req.Ttl)*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	return &pb.SetResponse{}, nil
+	return &pb.SetResponse{
+		Status: true,
+	}, nil
 }
 
 func (s *GRPCCacheServer) Del(ctx context.Context, req *pb.DelRequest) (res *pb.DelResponse, err error) {
@@ -56,5 +73,7 @@ func (s *GRPCCacheServer) Del(ctx context.Context, req *pb.DelRequest) (res *pb.
 	if err != nil {
 		return nil, err
 	}
-	return &pb.DelResponse{}, nil
+	return &pb.DelResponse{
+		Status: true,
+	}, nil
 }

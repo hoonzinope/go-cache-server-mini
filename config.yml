@@ -13,6 +13,7 @@ http:
 # Distributed caching configuration with docker swarm
 distributed:
   enabled: false
+  grpc_port: 50051
   swarm_service_name: "go-cache-service"
   update_interval: 10  # in seconds
   replication_factor: 3
