@@ -30,13 +30,17 @@ func (d *Distributor) Set(ctx context.Context, key string, value []byte, expirat
 		return err
 	}
 
+	// Create a context that cannot be canceled
+	ctxwoCancel := context.WithoutCancel(ctx)
 	adapters, err := d.nodeRouter.GetAdapters(key)
 	if err != nil {
 		return err
 	}
 	go func() {
 		for _, adapter := range adapters {
-			adapter.SetItem(ctx, key, value, expiration)
+			if err := adapter.SetItem(ctxwoCancel, key, value, expiration); err != nil {
+				log.Printf("Failed to replicate set item for key %s: %v", key, err)
+			}
 		}
 	}()
 	return nil
@@ -282,14 +286,21 @@ func (d *Distributor) MSet(ctx context.Context, kv map[string][]byte, expiration
 	if err := localAdapter.SetMultiple(ctx, kv, expiration); err != nil {
 		return err
 	}
-	adapters, err := d.nodeRouter.GetAdapters("")
-	if err != nil {
-		return err
-	}
-	go func() {
-		for _, adapter := range adapters {
-			adapter.SetMultiple(ctx, kv, expiration)
+
+	ctxwoCancel := context.WithoutCancel(ctx)
+	for key := range kv {
+		value := kv[key]
+		adapters, err := d.nodeRouter.GetAdapters(key)
+		if err != nil {
+			return err
 		}
-	}()
+		go func() {
+			for _, adapter := range adapters {
+				if err := adapter.SetItem(ctxwoCancel, key, value, expiration); err != nil {
+					log.Printf("Failed to replicate set item for key %s: %v", key, err)
+				}
+			}
+		}()
+	}
 	return nil
 }
