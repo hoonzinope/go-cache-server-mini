@@ -12,7 +12,8 @@ type KeysHandler struct {
 }
 
 func (h *KeysHandler) Keys(c *gin.Context) {
-	keys, err := h.Cache.Keys()
+	ctx := c.Request.Context()
+	keys, err := h.Cache.Keys(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

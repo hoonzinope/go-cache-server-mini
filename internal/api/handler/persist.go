@@ -16,13 +16,14 @@ type PersistHandler struct {
 }
 
 func (h *PersistHandler) Persist(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req dto.KeyRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		log.Printf("Error binding query: %v", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
-	if err := h.Cache.Persist(req.Key); err != nil {
+	if err := h.Cache.Persist(ctx, req.Key); err != nil {
 		if errors.Is(err, internal.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": internal.ErrNotFound.Error()})
 			return

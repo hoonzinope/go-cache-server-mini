@@ -15,13 +15,14 @@ type SetNXHandler struct {
 }
 
 func (h *SetNXHandler) SetNX(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req dto.SetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
 	ttl := time.Duration(req.TTL) * time.Second
-	success, setErr := h.Cache.SetNX(req.Key, req.Value, ttl)
+	success, setErr := h.Cache.SetNX(ctx, req.Key, req.Value, ttl)
 	if setErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": internal.ErrServer.Error()})
 		return

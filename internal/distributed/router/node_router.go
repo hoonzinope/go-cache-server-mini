@@ -115,7 +115,7 @@ func (nr *NodeRouter) _updateRemoteNodes(remoteIPs []string, remotePort int) {
 	newAdapters := make(map[string]adapter.AdapterInterface)
 	for _, ip := range ipsToAdd {
 		// NewRemoteAdapter는 내부적으로 gRPC 클라이언트를 생성하므로 락 외부에서 호출
-		remoteAdapter, err := adapter.NewRemoteAdapter(nr.ctx, ip, remotePort)
+		remoteAdapter, err := adapter.NewRemoteAdapter(ip, remotePort)
 		if err != nil {
 			log.Printf("failed to create remote adapter for IP %s: %v\n", ip, err)
 			continue
@@ -262,18 +262,18 @@ func (nr *NodeRouter) addLocalAdapter(nodeIP string, adapter adapter.AdapterInte
 	return nr.addNode(nodeIP, adapter)
 }
 
-func (nr *NodeRouter) addRemoteAdapter(nodeIP string, remotePort int) error {
-	if _, exists := nr.nodeIpSet[nodeIP]; !exists {
-		remoteAdapter, err := adapter.NewRemoteAdapter(nr.ctx, nodeIP, remotePort)
-		if err != nil {
-			log.Printf("failed to create remote adapter for IP %s: %v\n", nodeIP, err)
-			return err
-		}
-		return nr.addNode(nodeIP, remoteAdapter)
-	}
+// func (nr *NodeRouter) addRemoteAdapter(nodeIP string, remotePort int) error {
+// 	if _, exists := nr.nodeIpSet[nodeIP]; !exists {
+// 		remoteAdapter, err := adapter.NewRemoteAdapter(nr.ctx, nodeIP, remotePort)
+// 		if err != nil {
+// 			log.Printf("failed to create remote adapter for IP %s: %v\n", nodeIP, err)
+// 			return err
+// 		}
+// 		return nr.addNode(nodeIP, remoteAdapter)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func (nr *NodeRouter) addNode(nodeIP string, adapter adapter.AdapterInterface) error {
 	for i := 0; i < nr.replicas; i++ {
@@ -285,35 +285,35 @@ func (nr *NodeRouter) addNode(nodeIP string, adapter adapter.AdapterInterface) e
 	return nil
 }
 
-func (nr *NodeRouter) removeRemoteAdapter(nodeIP string) error {
-	if _, exists := nr.nodeIpSet[nodeIP]; !exists {
-		return fmt.Errorf("node IP %s not found", nodeIP)
-	}
+// func (nr *NodeRouter) removeRemoteAdapter(nodeIP string) error {
+// 	if _, exists := nr.nodeIpSet[nodeIP]; !exists {
+// 		return fmt.Errorf("node IP %s not found", nodeIP)
+// 	}
 
-	closeAdapters := map[*adapter.RemoteAdapter]struct{}{}
+// 	closeAdapters := map[*adapter.RemoteAdapter]struct{}{}
 
-	hashToRemove := make(map[uint32]struct{}, nr.replicas)
-	for i := 0; i < nr.replicas; i++ {
-		hash := util.Fnv32aHash(fmt.Sprintf("%s-%d", nodeIP, i))
-		adapterInterface, ok := nr.nodeMap.Load(hash)
-		if ok {
-			if remoteAdapter, ok := adapterInterface.(*adapter.RemoteAdapter); ok {
-				closeAdapters[remoteAdapter] = struct{}{}
-			}
-		}
-		nr.nodeMap.Delete(hash)
-		hashToRemove[hash] = struct{}{}
-	}
-	newHashes := make([]uint32, 0, len(nr.hashes)-len(hashToRemove))
-	for _, hash := range nr.hashes {
-		if _, found := hashToRemove[hash]; !found {
-			newHashes = append(newHashes, hash)
-		}
-	}
-	nr.hashes = newHashes
-	delete(nr.nodeIpSet, nodeIP)
-	for adapterInst := range closeAdapters {
-		adapterInst.Close()
-	}
-	return nil
-}
+// 	hashToRemove := make(map[uint32]struct{}, nr.replicas)
+// 	for i := 0; i < nr.replicas; i++ {
+// 		hash := util.Fnv32aHash(fmt.Sprintf("%s-%d", nodeIP, i))
+// 		adapterInterface, ok := nr.nodeMap.Load(hash)
+// 		if ok {
+// 			if remoteAdapter, ok := adapterInterface.(*adapter.RemoteAdapter); ok {
+// 				closeAdapters[remoteAdapter] = struct{}{}
+// 			}
+// 		}
+// 		nr.nodeMap.Delete(hash)
+// 		hashToRemove[hash] = struct{}{}
+// 	}
+// 	newHashes := make([]uint32, 0, len(nr.hashes)-len(hashToRemove))
+// 	for _, hash := range nr.hashes {
+// 		if _, found := hashToRemove[hash]; !found {
+// 			newHashes = append(newHashes, hash)
+// 		}
+// 	}
+// 	nr.hashes = newHashes
+// 	delete(nr.nodeIpSet, nodeIP)
+// 	for adapterInst := range closeAdapters {
+// 		adapterInst.Close()
+// 	}
+// 	return nil
+// }

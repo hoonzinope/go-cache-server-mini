@@ -110,10 +110,11 @@ func (x *GetResponse) GetValue() []byte {
 }
 
 type SetRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Value         []byte                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
-	Ttl           int64                  `protobuf:"varint,3,opt,name=ttl,proto3" json:"ttl,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Key   string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value []byte                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	// ttl int second
+	Ttl           int64 `protobuf:"varint,3,opt,name=ttl,proto3" json:"ttl,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -301,6 +302,1102 @@ func (x *DelResponse) GetStatus() bool {
 	return false
 }
 
+type ExistsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExistsRequest) Reset() {
+	*x = ExistsRequest{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExistsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExistsRequest) ProtoMessage() {}
+
+func (x *ExistsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExistsRequest.ProtoReflect.Descriptor instead.
+func (*ExistsRequest) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ExistsRequest) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+type ExistsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Exists        bool                   `protobuf:"varint,1,opt,name=exists,proto3" json:"exists,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExistsResponse) Reset() {
+	*x = ExistsResponse{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExistsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExistsResponse) ProtoMessage() {}
+
+func (x *ExistsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExistsResponse.ProtoReflect.Descriptor instead.
+func (*ExistsResponse) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ExistsResponse) GetExists() bool {
+	if x != nil {
+		return x.Exists
+	}
+	return false
+}
+
+type KeysRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KeysRequest) Reset() {
+	*x = KeysRequest{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KeysRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KeysRequest) ProtoMessage() {}
+
+func (x *KeysRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KeysRequest.ProtoReflect.Descriptor instead.
+func (*KeysRequest) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{8}
+}
+
+type KeysResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Keys          []string               `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KeysResponse) Reset() {
+	*x = KeysResponse{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KeysResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KeysResponse) ProtoMessage() {}
+
+func (x *KeysResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KeysResponse.ProtoReflect.Descriptor instead.
+func (*KeysResponse) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *KeysResponse) GetKeys() []string {
+	if x != nil {
+		return x.Keys
+	}
+	return nil
+}
+
+type FlushRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FlushRequest) Reset() {
+	*x = FlushRequest{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FlushRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FlushRequest) ProtoMessage() {}
+
+func (x *FlushRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FlushRequest.ProtoReflect.Descriptor instead.
+func (*FlushRequest) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{10}
+}
+
+type FlushResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        bool                   `protobuf:"varint,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FlushResponse) Reset() {
+	*x = FlushResponse{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FlushResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FlushResponse) ProtoMessage() {}
+
+func (x *FlushResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FlushResponse.ProtoReflect.Descriptor instead.
+func (*FlushResponse) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *FlushResponse) GetStatus() bool {
+	if x != nil {
+		return x.Status
+	}
+	return false
+}
+
+type TTLRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TTLRequest) Reset() {
+	*x = TTLRequest{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TTLRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TTLRequest) ProtoMessage() {}
+
+func (x *TTLRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TTLRequest.ProtoReflect.Descriptor instead.
+func (*TTLRequest) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *TTLRequest) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+type TTLResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TtlSeconds    int64                  `protobuf:"varint,1,opt,name=ttl_seconds,json=ttlSeconds,proto3" json:"ttl_seconds,omitempty"`
+	Found         bool                   `protobuf:"varint,2,opt,name=found,proto3" json:"found,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TTLResponse) Reset() {
+	*x = TTLResponse{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TTLResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TTLResponse) ProtoMessage() {}
+
+func (x *TTLResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TTLResponse.ProtoReflect.Descriptor instead.
+func (*TTLResponse) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *TTLResponse) GetTtlSeconds() int64 {
+	if x != nil {
+		return x.TtlSeconds
+	}
+	return 0
+}
+
+func (x *TTLResponse) GetFound() bool {
+	if x != nil {
+		return x.Found
+	}
+	return false
+}
+
+type ExpireRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Ttl           int64                  `protobuf:"varint,2,opt,name=ttl,proto3" json:"ttl,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExpireRequest) Reset() {
+	*x = ExpireRequest{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExpireRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExpireRequest) ProtoMessage() {}
+
+func (x *ExpireRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExpireRequest.ProtoReflect.Descriptor instead.
+func (*ExpireRequest) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ExpireRequest) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *ExpireRequest) GetTtl() int64 {
+	if x != nil {
+		return x.Ttl
+	}
+	return 0
+}
+
+type ExpireResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        bool                   `protobuf:"varint,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExpireResponse) Reset() {
+	*x = ExpireResponse{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExpireResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExpireResponse) ProtoMessage() {}
+
+func (x *ExpireResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExpireResponse.ProtoReflect.Descriptor instead.
+func (*ExpireResponse) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ExpireResponse) GetStatus() bool {
+	if x != nil {
+		return x.Status
+	}
+	return false
+}
+
+type PersistRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PersistRequest) Reset() {
+	*x = PersistRequest{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PersistRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PersistRequest) ProtoMessage() {}
+
+func (x *PersistRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PersistRequest.ProtoReflect.Descriptor instead.
+func (*PersistRequest) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *PersistRequest) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+type PersistResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        bool                   `protobuf:"varint,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PersistResponse) Reset() {
+	*x = PersistResponse{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PersistResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PersistResponse) ProtoMessage() {}
+
+func (x *PersistResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PersistResponse.ProtoReflect.Descriptor instead.
+func (*PersistResponse) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *PersistResponse) GetStatus() bool {
+	if x != nil {
+		return x.Status
+	}
+	return false
+}
+
+type IncrRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IncrRequest) Reset() {
+	*x = IncrRequest{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IncrRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IncrRequest) ProtoMessage() {}
+
+func (x *IncrRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IncrRequest.ProtoReflect.Descriptor instead.
+func (*IncrRequest) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *IncrRequest) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+type IncrResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Value         int64                  `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IncrResponse) Reset() {
+	*x = IncrResponse{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IncrResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IncrResponse) ProtoMessage() {}
+
+func (x *IncrResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IncrResponse.ProtoReflect.Descriptor instead.
+func (*IncrResponse) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *IncrResponse) GetValue() int64 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+type DecrRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DecrRequest) Reset() {
+	*x = DecrRequest{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DecrRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DecrRequest) ProtoMessage() {}
+
+func (x *DecrRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DecrRequest.ProtoReflect.Descriptor instead.
+func (*DecrRequest) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *DecrRequest) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+type DecrResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Value         int64                  `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DecrResponse) Reset() {
+	*x = DecrResponse{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DecrResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DecrResponse) ProtoMessage() {}
+
+func (x *DecrResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DecrResponse.ProtoReflect.Descriptor instead.
+func (*DecrResponse) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *DecrResponse) GetValue() int64 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+type SetNXRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value         []byte                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Ttl           int64                  `protobuf:"varint,3,opt,name=ttl,proto3" json:"ttl,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetNXRequest) Reset() {
+	*x = SetNXRequest{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetNXRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetNXRequest) ProtoMessage() {}
+
+func (x *SetNXRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetNXRequest.ProtoReflect.Descriptor instead.
+func (*SetNXRequest) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *SetNXRequest) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *SetNXRequest) GetValue() []byte {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+func (x *SetNXRequest) GetTtl() int64 {
+	if x != nil {
+		return x.Ttl
+	}
+	return 0
+}
+
+type SetNXResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetNXResponse) Reset() {
+	*x = SetNXResponse{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetNXResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetNXResponse) ProtoMessage() {}
+
+func (x *SetNXResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetNXResponse.ProtoReflect.Descriptor instead.
+func (*SetNXResponse) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *SetNXResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+type GetSetRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value         []byte                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSetRequest) Reset() {
+	*x = GetSetRequest{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSetRequest) ProtoMessage() {}
+
+func (x *GetSetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSetRequest.ProtoReflect.Descriptor instead.
+func (*GetSetRequest) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *GetSetRequest) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *GetSetRequest) GetValue() []byte {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+type GetSetResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OldValue      []byte                 `protobuf:"bytes,1,opt,name=old_value,json=oldValue,proto3" json:"old_value,omitempty"`
+	Found         bool                   `protobuf:"varint,2,opt,name=found,proto3" json:"found,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSetResponse) Reset() {
+	*x = GetSetResponse{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSetResponse) ProtoMessage() {}
+
+func (x *GetSetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSetResponse.ProtoReflect.Descriptor instead.
+func (*GetSetResponse) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *GetSetResponse) GetOldValue() []byte {
+	if x != nil {
+		return x.OldValue
+	}
+	return nil
+}
+
+func (x *GetSetResponse) GetFound() bool {
+	if x != nil {
+		return x.Found
+	}
+	return false
+}
+
+type MGetRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Keys          []string               `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MGetRequest) Reset() {
+	*x = MGetRequest{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MGetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MGetRequest) ProtoMessage() {}
+
+func (x *MGetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MGetRequest.ProtoReflect.Descriptor instead.
+func (*MGetRequest) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *MGetRequest) GetKeys() []string {
+	if x != nil {
+		return x.Keys
+	}
+	return nil
+}
+
+type MGetResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kv            map[string][]byte      `protobuf:"bytes,1,rep,name=kv,proto3" json:"kv,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MGetResponse) Reset() {
+	*x = MGetResponse{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MGetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MGetResponse) ProtoMessage() {}
+
+func (x *MGetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MGetResponse.ProtoReflect.Descriptor instead.
+func (*MGetResponse) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *MGetResponse) GetKv() map[string][]byte {
+	if x != nil {
+		return x.Kv
+	}
+	return nil
+}
+
+type MSetRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kv            map[string][]byte      `protobuf:"bytes,1,rep,name=kv,proto3" json:"kv,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Ttl           int64                  `protobuf:"varint,2,opt,name=ttl,proto3" json:"ttl,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MSetRequest) Reset() {
+	*x = MSetRequest{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MSetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MSetRequest) ProtoMessage() {}
+
+func (x *MSetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MSetRequest.ProtoReflect.Descriptor instead.
+func (*MSetRequest) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *MSetRequest) GetKv() map[string][]byte {
+	if x != nil {
+		return x.Kv
+	}
+	return nil
+}
+
+func (x *MSetRequest) GetTtl() int64 {
+	if x != nil {
+		return x.Ttl
+	}
+	return 0
+}
+
+type MSetResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        bool                   `protobuf:"varint,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MSetResponse) Reset() {
+	*x = MSetResponse{}
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MSetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MSetResponse) ProtoMessage() {}
+
+func (x *MSetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_grpc_proto_cache_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MSetResponse.ProtoReflect.Descriptor instead.
+func (*MSetResponse) Descriptor() ([]byte, []int) {
+	return file_internal_grpc_proto_cache_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *MSetResponse) GetStatus() bool {
+	if x != nil {
+		return x.Status
+	}
+	return false
+}
+
 var File_internal_grpc_proto_cache_proto protoreflect.FileDescriptor
 
 const file_internal_grpc_proto_cache_proto_rawDesc = "" +
@@ -322,11 +1419,84 @@ const file_internal_grpc_proto_cache_proto_rawDesc = "" +
 	"DelRequest\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\"%\n" +
 	"\vDelResponse\x12\x16\n" +
-	"\x06status\x18\x01 \x01(\bR\x06status2\xaa\x01\n" +
+	"\x06status\x18\x01 \x01(\bR\x06status\"!\n" +
+	"\rExistsRequest\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\"(\n" +
+	"\x0eExistsResponse\x12\x16\n" +
+	"\x06exists\x18\x01 \x01(\bR\x06exists\"\r\n" +
+	"\vKeysRequest\"\"\n" +
+	"\fKeysResponse\x12\x12\n" +
+	"\x04keys\x18\x01 \x03(\tR\x04keys\"\x0e\n" +
+	"\fFlushRequest\"'\n" +
+	"\rFlushResponse\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\bR\x06status\"\x1e\n" +
+	"\n" +
+	"TTLRequest\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\"D\n" +
+	"\vTTLResponse\x12\x1f\n" +
+	"\vttl_seconds\x18\x01 \x01(\x03R\n" +
+	"ttlSeconds\x12\x14\n" +
+	"\x05found\x18\x02 \x01(\bR\x05found\"3\n" +
+	"\rExpireRequest\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x10\n" +
+	"\x03ttl\x18\x02 \x01(\x03R\x03ttl\"(\n" +
+	"\x0eExpireResponse\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\bR\x06status\"\"\n" +
+	"\x0ePersistRequest\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\")\n" +
+	"\x0fPersistResponse\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\bR\x06status\"\x1f\n" +
+	"\vIncrRequest\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\"$\n" +
+	"\fIncrResponse\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\x03R\x05value\"\x1f\n" +
+	"\vDecrRequest\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\"$\n" +
+	"\fDecrResponse\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\x03R\x05value\"H\n" +
+	"\fSetNXRequest\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\x12\x10\n" +
+	"\x03ttl\x18\x03 \x01(\x03R\x03ttl\")\n" +
+	"\rSetNXResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"7\n" +
+	"\rGetSetRequest\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\"C\n" +
+	"\x0eGetSetResponse\x12\x1b\n" +
+	"\told_value\x18\x01 \x01(\fR\boldValue\x12\x14\n" +
+	"\x05found\x18\x02 \x01(\bR\x05found\"!\n" +
+	"\vMGetRequest\x12\x12\n" +
+	"\x04keys\x18\x01 \x03(\tR\x04keys\"u\n" +
+	"\fMGetResponse\x12.\n" +
+	"\x02kv\x18\x01 \x03(\v2\x1e.cache.v1.MGetResponse.KvEntryR\x02kv\x1a5\n" +
+	"\aKvEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value:\x028\x01\"\x85\x01\n" +
+	"\vMSetRequest\x12-\n" +
+	"\x02kv\x18\x01 \x03(\v2\x1d.cache.v1.MSetRequest.KvEntryR\x02kv\x12\x10\n" +
+	"\x03ttl\x18\x02 \x01(\x03R\x03ttl\x1a5\n" +
+	"\aKvEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value:\x028\x01\"&\n" +
+	"\fMSetResponse\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\bR\x06status2\xdc\x06\n" +
 	"\fCacheService\x122\n" +
 	"\x03Get\x12\x14.cache.v1.GetRequest\x1a\x15.cache.v1.GetResponse\x122\n" +
 	"\x03Set\x12\x14.cache.v1.SetRequest\x1a\x15.cache.v1.SetResponse\x122\n" +
-	"\x03Del\x12\x14.cache.v1.DelRequest\x1a\x15.cache.v1.DelResponseB\x12Z\x10internal/grpc/pbb\x06proto3"
+	"\x03Del\x12\x14.cache.v1.DelRequest\x1a\x15.cache.v1.DelResponse\x12;\n" +
+	"\x06Exists\x12\x17.cache.v1.ExistsRequest\x1a\x18.cache.v1.ExistsResponse\x125\n" +
+	"\x04Keys\x12\x15.cache.v1.KeysRequest\x1a\x16.cache.v1.KeysResponse\x128\n" +
+	"\x05Flush\x12\x16.cache.v1.FlushRequest\x1a\x17.cache.v1.FlushResponse\x122\n" +
+	"\x03TTL\x12\x14.cache.v1.TTLRequest\x1a\x15.cache.v1.TTLResponse\x12;\n" +
+	"\x06Expire\x12\x17.cache.v1.ExpireRequest\x1a\x18.cache.v1.ExpireResponse\x12>\n" +
+	"\aPersist\x12\x18.cache.v1.PersistRequest\x1a\x19.cache.v1.PersistResponse\x125\n" +
+	"\x04Incr\x12\x15.cache.v1.IncrRequest\x1a\x16.cache.v1.IncrResponse\x125\n" +
+	"\x04Decr\x12\x15.cache.v1.DecrRequest\x1a\x16.cache.v1.DecrResponse\x128\n" +
+	"\x05SetNX\x12\x16.cache.v1.SetNXRequest\x1a\x17.cache.v1.SetNXResponse\x12;\n" +
+	"\x06GetSet\x12\x17.cache.v1.GetSetRequest\x1a\x18.cache.v1.GetSetResponse\x125\n" +
+	"\x04MGet\x12\x15.cache.v1.MGetRequest\x1a\x16.cache.v1.MGetResponse\x125\n" +
+	"\x04MSet\x12\x15.cache.v1.MSetRequest\x1a\x16.cache.v1.MSetResponseB\x12Z\x10internal/grpc/pbb\x06proto3"
 
 var (
 	file_internal_grpc_proto_cache_proto_rawDescOnce sync.Once
@@ -340,27 +1510,79 @@ func file_internal_grpc_proto_cache_proto_rawDescGZIP() []byte {
 	return file_internal_grpc_proto_cache_proto_rawDescData
 }
 
-var file_internal_grpc_proto_cache_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_internal_grpc_proto_cache_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
 var file_internal_grpc_proto_cache_proto_goTypes = []any{
-	(*GetRequest)(nil),  // 0: cache.v1.GetRequest
-	(*GetResponse)(nil), // 1: cache.v1.GetResponse
-	(*SetRequest)(nil),  // 2: cache.v1.SetRequest
-	(*SetResponse)(nil), // 3: cache.v1.SetResponse
-	(*DelRequest)(nil),  // 4: cache.v1.DelRequest
-	(*DelResponse)(nil), // 5: cache.v1.DelResponse
+	(*GetRequest)(nil),      // 0: cache.v1.GetRequest
+	(*GetResponse)(nil),     // 1: cache.v1.GetResponse
+	(*SetRequest)(nil),      // 2: cache.v1.SetRequest
+	(*SetResponse)(nil),     // 3: cache.v1.SetResponse
+	(*DelRequest)(nil),      // 4: cache.v1.DelRequest
+	(*DelResponse)(nil),     // 5: cache.v1.DelResponse
+	(*ExistsRequest)(nil),   // 6: cache.v1.ExistsRequest
+	(*ExistsResponse)(nil),  // 7: cache.v1.ExistsResponse
+	(*KeysRequest)(nil),     // 8: cache.v1.KeysRequest
+	(*KeysResponse)(nil),    // 9: cache.v1.KeysResponse
+	(*FlushRequest)(nil),    // 10: cache.v1.FlushRequest
+	(*FlushResponse)(nil),   // 11: cache.v1.FlushResponse
+	(*TTLRequest)(nil),      // 12: cache.v1.TTLRequest
+	(*TTLResponse)(nil),     // 13: cache.v1.TTLResponse
+	(*ExpireRequest)(nil),   // 14: cache.v1.ExpireRequest
+	(*ExpireResponse)(nil),  // 15: cache.v1.ExpireResponse
+	(*PersistRequest)(nil),  // 16: cache.v1.PersistRequest
+	(*PersistResponse)(nil), // 17: cache.v1.PersistResponse
+	(*IncrRequest)(nil),     // 18: cache.v1.IncrRequest
+	(*IncrResponse)(nil),    // 19: cache.v1.IncrResponse
+	(*DecrRequest)(nil),     // 20: cache.v1.DecrRequest
+	(*DecrResponse)(nil),    // 21: cache.v1.DecrResponse
+	(*SetNXRequest)(nil),    // 22: cache.v1.SetNXRequest
+	(*SetNXResponse)(nil),   // 23: cache.v1.SetNXResponse
+	(*GetSetRequest)(nil),   // 24: cache.v1.GetSetRequest
+	(*GetSetResponse)(nil),  // 25: cache.v1.GetSetResponse
+	(*MGetRequest)(nil),     // 26: cache.v1.MGetRequest
+	(*MGetResponse)(nil),    // 27: cache.v1.MGetResponse
+	(*MSetRequest)(nil),     // 28: cache.v1.MSetRequest
+	(*MSetResponse)(nil),    // 29: cache.v1.MSetResponse
+	nil,                     // 30: cache.v1.MGetResponse.KvEntry
+	nil,                     // 31: cache.v1.MSetRequest.KvEntry
 }
 var file_internal_grpc_proto_cache_proto_depIdxs = []int32{
-	0, // 0: cache.v1.CacheService.Get:input_type -> cache.v1.GetRequest
-	2, // 1: cache.v1.CacheService.Set:input_type -> cache.v1.SetRequest
-	4, // 2: cache.v1.CacheService.Del:input_type -> cache.v1.DelRequest
-	1, // 3: cache.v1.CacheService.Get:output_type -> cache.v1.GetResponse
-	3, // 4: cache.v1.CacheService.Set:output_type -> cache.v1.SetResponse
-	5, // 5: cache.v1.CacheService.Del:output_type -> cache.v1.DelResponse
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	30, // 0: cache.v1.MGetResponse.kv:type_name -> cache.v1.MGetResponse.KvEntry
+	31, // 1: cache.v1.MSetRequest.kv:type_name -> cache.v1.MSetRequest.KvEntry
+	0,  // 2: cache.v1.CacheService.Get:input_type -> cache.v1.GetRequest
+	2,  // 3: cache.v1.CacheService.Set:input_type -> cache.v1.SetRequest
+	4,  // 4: cache.v1.CacheService.Del:input_type -> cache.v1.DelRequest
+	6,  // 5: cache.v1.CacheService.Exists:input_type -> cache.v1.ExistsRequest
+	8,  // 6: cache.v1.CacheService.Keys:input_type -> cache.v1.KeysRequest
+	10, // 7: cache.v1.CacheService.Flush:input_type -> cache.v1.FlushRequest
+	12, // 8: cache.v1.CacheService.TTL:input_type -> cache.v1.TTLRequest
+	14, // 9: cache.v1.CacheService.Expire:input_type -> cache.v1.ExpireRequest
+	16, // 10: cache.v1.CacheService.Persist:input_type -> cache.v1.PersistRequest
+	18, // 11: cache.v1.CacheService.Incr:input_type -> cache.v1.IncrRequest
+	20, // 12: cache.v1.CacheService.Decr:input_type -> cache.v1.DecrRequest
+	22, // 13: cache.v1.CacheService.SetNX:input_type -> cache.v1.SetNXRequest
+	24, // 14: cache.v1.CacheService.GetSet:input_type -> cache.v1.GetSetRequest
+	26, // 15: cache.v1.CacheService.MGet:input_type -> cache.v1.MGetRequest
+	28, // 16: cache.v1.CacheService.MSet:input_type -> cache.v1.MSetRequest
+	1,  // 17: cache.v1.CacheService.Get:output_type -> cache.v1.GetResponse
+	3,  // 18: cache.v1.CacheService.Set:output_type -> cache.v1.SetResponse
+	5,  // 19: cache.v1.CacheService.Del:output_type -> cache.v1.DelResponse
+	7,  // 20: cache.v1.CacheService.Exists:output_type -> cache.v1.ExistsResponse
+	9,  // 21: cache.v1.CacheService.Keys:output_type -> cache.v1.KeysResponse
+	11, // 22: cache.v1.CacheService.Flush:output_type -> cache.v1.FlushResponse
+	13, // 23: cache.v1.CacheService.TTL:output_type -> cache.v1.TTLResponse
+	15, // 24: cache.v1.CacheService.Expire:output_type -> cache.v1.ExpireResponse
+	17, // 25: cache.v1.CacheService.Persist:output_type -> cache.v1.PersistResponse
+	19, // 26: cache.v1.CacheService.Incr:output_type -> cache.v1.IncrResponse
+	21, // 27: cache.v1.CacheService.Decr:output_type -> cache.v1.DecrResponse
+	23, // 28: cache.v1.CacheService.SetNX:output_type -> cache.v1.SetNXResponse
+	25, // 29: cache.v1.CacheService.GetSet:output_type -> cache.v1.GetSetResponse
+	27, // 30: cache.v1.CacheService.MGet:output_type -> cache.v1.MGetResponse
+	29, // 31: cache.v1.CacheService.MSet:output_type -> cache.v1.MSetResponse
+	17, // [17:32] is the sub-list for method output_type
+	2,  // [2:17] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_internal_grpc_proto_cache_proto_init() }
@@ -374,7 +1596,7 @@ func file_internal_grpc_proto_cache_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_grpc_proto_cache_proto_rawDesc), len(file_internal_grpc_proto_cache_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   32,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

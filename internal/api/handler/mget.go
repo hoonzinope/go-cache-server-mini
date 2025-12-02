@@ -15,12 +15,13 @@ type MGetHandler struct {
 }
 
 func (h *MGetHandler) MGet(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req dto.MGetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
-	kv, err := h.Cache.MGet(req.Keys)
+	kv, err := h.Cache.MGet(ctx, req.Keys)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

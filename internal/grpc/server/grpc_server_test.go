@@ -95,35 +95,35 @@ func newStubDistributor() router.DistributorInterface {
 	}
 }
 
-func (d *stubDistributor) Set(key string, value []byte, expiration time.Duration) error {
+func (d *stubDistributor) Set(ctx context.Context, key string, value []byte, expiration time.Duration) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.m[key] = value
 	return nil
 }
 
-func (d *stubDistributor) Get(key string) ([]byte, bool, error) {
+func (d *stubDistributor) Get(ctx context.Context, key string) ([]byte, bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	val, ok := d.m[key]
 	return val, ok, nil
 }
 
-func (d *stubDistributor) Del(key string) error {
+func (d *stubDistributor) Del(ctx context.Context, key string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	delete(d.m, key)
 	return nil
 }
 
-func (d *stubDistributor) Exists(key string) (bool, error) {
+func (d *stubDistributor) Exists(ctx context.Context, key string) (bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	_, ok := d.m[key]
 	return ok, nil
 }
 
-func (d *stubDistributor) Keys() ([]string, error) {
+func (d *stubDistributor) Keys(ctx context.Context) ([]string, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	keys := make([]string, 0, len(d.m))
@@ -133,26 +133,26 @@ func (d *stubDistributor) Keys() ([]string, error) {
 	return keys, nil
 }
 
-func (d *stubDistributor) Flush() error {
+func (d *stubDistributor) Flush(ctx context.Context) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.m = make(map[string][]byte)
 	return nil
 }
 
-func (d *stubDistributor) TTL(key string) (time.Duration, bool, error) {
+func (d *stubDistributor) TTL(ctx context.Context, key string) (time.Duration, bool, error) {
 	return 0, false, nil
 }
 
-func (d *stubDistributor) Expire(key string, expiration time.Duration) error {
+func (d *stubDistributor) Expire(ctx context.Context, key string, expiration time.Duration) error {
 	return nil
 }
 
-func (d *stubDistributor) Persist(key string) error {
+func (d *stubDistributor) Persist(ctx context.Context, key string) error {
 	return nil
 }
 
-func (d *stubDistributor) Incr(key string) (int64, error) {
+func (d *stubDistributor) Incr(ctx context.Context, key string) (int64, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	val, ok := d.m[key]
@@ -165,7 +165,7 @@ func (d *stubDistributor) Incr(key string) (int64, error) {
 	return num, nil
 }
 
-func (d *stubDistributor) Decr(key string) (int64, error) {
+func (d *stubDistributor) Decr(ctx context.Context, key string) (int64, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	val, ok := d.m[key]
@@ -178,7 +178,7 @@ func (d *stubDistributor) Decr(key string) (int64, error) {
 	return num, nil
 }
 
-func (d *stubDistributor) SetNX(key string, value []byte, expiration time.Duration) (bool, error) {
+func (d *stubDistributor) SetNX(ctx context.Context, key string, value []byte, expiration time.Duration) (bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if _, ok := d.m[key]; ok {
@@ -188,7 +188,7 @@ func (d *stubDistributor) SetNX(key string, value []byte, expiration time.Durati
 	return true, nil
 }
 
-func (d *stubDistributor) GetSet(key string, value []byte) ([]byte, error) {
+func (d *stubDistributor) GetSet(ctx context.Context, key string, value []byte) ([]byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	old := d.m[key]
@@ -196,7 +196,7 @@ func (d *stubDistributor) GetSet(key string, value []byte) ([]byte, error) {
 	return old, nil
 }
 
-func (d *stubDistributor) MGet(keys []string) (map[string][]byte, error) {
+func (d *stubDistributor) MGet(ctx context.Context, keys []string) (map[string][]byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	result := make(map[string][]byte, len(keys))
@@ -208,7 +208,7 @@ func (d *stubDistributor) MGet(keys []string) (map[string][]byte, error) {
 	return result, nil
 }
 
-func (d *stubDistributor) MSet(kv map[string][]byte, expiration time.Duration) error {
+func (d *stubDistributor) MSet(ctx context.Context, kv map[string][]byte, expiration time.Duration) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	for k, v := range kv {

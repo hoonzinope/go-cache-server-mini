@@ -14,12 +14,13 @@ type DelHandler struct {
 }
 
 func (h *DelHandler) Del(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req dto.KeyRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
-	delErr := h.Cache.Del(req.Key)
+	delErr := h.Cache.Del(ctx, req.Key)
 	if delErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": internal.ErrServer.Error()})
 		return

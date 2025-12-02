@@ -13,7 +13,8 @@ type FlushHandler struct {
 }
 
 func (h *FlushHandler) Flush(c *gin.Context) {
-	flushErr := h.Cache.Flush()
+	ctx := c.Request.Context()
+	flushErr := h.Cache.Flush(ctx)
 	if flushErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": internal.ErrServer.Error()})
 		return

@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"go-cache-server-mini/internal/distributed/adapter"
 	"time"
 )
@@ -19,68 +20,68 @@ func NewLocalDistributor(nodeRouter *NodeRouter) *LocalDistributor {
 	}
 }
 
-func (ld *LocalDistributor) Set(key string, value []byte, expiration time.Duration) error {
-	return ld.localAdapter.SetItem(key, value, expiration)
+func (ld *LocalDistributor) Set(ctx context.Context, key string, value []byte, expiration time.Duration) error {
+	return ld.localAdapter.SetItem(ctx, key, value, expiration)
 }
 
-func (ld *LocalDistributor) Get(key string) ([]byte, bool, error) {
-	if value, found := ld.localAdapter.GetItem(key); found {
+func (ld *LocalDistributor) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	if value, found := ld.localAdapter.GetItem(ctx, key); found {
 		return value, true, nil
 	}
 	return nil, false, nil
 }
 
-func (ld *LocalDistributor) Del(key string) error {
-	return ld.localAdapter.DeleteItem(key)
+func (ld *LocalDistributor) Del(ctx context.Context, key string) error {
+	return ld.localAdapter.DeleteItem(ctx, key)
 }
 
-func (ld *LocalDistributor) Exists(key string) (bool, error) {
-	return ld.localAdapter.ExistsItem(key), nil
+func (ld *LocalDistributor) Exists(ctx context.Context, key string) (bool, error) {
+	return ld.localAdapter.ExistsItem(ctx, key), nil
 }
 
-func (ld *LocalDistributor) Keys() ([]string, error) {
-	keys := ld.localAdapter.ListKeys()
+func (ld *LocalDistributor) Keys(ctx context.Context) ([]string, error) {
+	keys := ld.localAdapter.ListKeys(ctx)
 	return keys, nil
 }
 
-func (ld *LocalDistributor) Flush() error {
-	return ld.localAdapter.ClearCache()
+func (ld *LocalDistributor) Flush(ctx context.Context) error {
+	return ld.localAdapter.ClearCache(ctx)
 }
 
-func (ld *LocalDistributor) TTL(key string) (time.Duration, bool, error) {
-	ttl, found := ld.localAdapter.GetTTL(key)
+func (ld *LocalDistributor) TTL(ctx context.Context, key string) (time.Duration, bool, error) {
+	ttl, found := ld.localAdapter.GetTTL(ctx, key)
 	return ttl, found, nil
 }
 
-func (ld *LocalDistributor) Expire(key string, expiration time.Duration) error {
-	return ld.localAdapter.UpdateExpiration(key, expiration)
+func (ld *LocalDistributor) Expire(ctx context.Context, key string, expiration time.Duration) error {
+	return ld.localAdapter.UpdateExpiration(ctx, key, expiration)
 }
 
-func (ld *LocalDistributor) Persist(key string) error {
-	return ld.localAdapter.RemoveExpiration(key)
+func (ld *LocalDistributor) Persist(ctx context.Context, key string) error {
+	return ld.localAdapter.RemoveExpiration(ctx, key)
 }
 
-func (ld *LocalDistributor) Incr(key string) (int64, error) {
-	return ld.localAdapter.Increment(key)
+func (ld *LocalDistributor) Incr(ctx context.Context, key string) (int64, error) {
+	return ld.localAdapter.Increment(ctx, key)
 }
 
-func (ld *LocalDistributor) Decr(key string) (int64, error) {
-	return ld.localAdapter.Decrement(key)
+func (ld *LocalDistributor) Decr(ctx context.Context, key string) (int64, error) {
+	return ld.localAdapter.Decrement(ctx, key)
 }
 
-func (ld *LocalDistributor) SetNX(key string, value []byte, expiration time.Duration) (bool, error) {
-	return ld.localAdapter.SetIfNotExists(key, value, expiration)
+func (ld *LocalDistributor) SetNX(ctx context.Context, key string, value []byte, expiration time.Duration) (bool, error) {
+	return ld.localAdapter.SetIfNotExists(ctx, key, value, expiration)
 }
 
-func (ld *LocalDistributor) GetSet(key string, value []byte) ([]byte, error) {
-	return ld.localAdapter.GetAndSet(key, value)
+func (ld *LocalDistributor) GetSet(ctx context.Context, key string, value []byte) ([]byte, error) {
+	return ld.localAdapter.GetAndSet(ctx, key, value)
 }
 
-func (ld *LocalDistributor) MGet(keys []string) (map[string][]byte, error) {
-	result := ld.localAdapter.GetMultiple(keys)
+func (ld *LocalDistributor) MGet(ctx context.Context, keys []string) (map[string][]byte, error) {
+	result := ld.localAdapter.GetMultiple(ctx, keys)
 	return result, nil
 }
 
-func (ld *LocalDistributor) MSet(items map[string][]byte, expiration time.Duration) error {
-	return ld.localAdapter.SetMultiple(items, expiration)
+func (ld *LocalDistributor) MSet(ctx context.Context, items map[string][]byte, expiration time.Duration) error {
+	return ld.localAdapter.SetMultiple(ctx, items, expiration)
 }

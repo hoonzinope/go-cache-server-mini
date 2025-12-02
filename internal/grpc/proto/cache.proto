@@ -13,6 +13,40 @@ service CacheService {
 
     // del
     rpc Del(DelRequest) returns (DelResponse);
+
+    // exists
+    rpc Exists(ExistsRequest) returns (ExistsResponse);
+
+    // keys
+    rpc Keys(KeysRequest) returns (KeysResponse);
+
+    // flush
+    rpc Flush(FlushRequest) returns (FlushResponse);
+
+    // ttl
+    rpc TTL(TTLRequest) returns (TTLResponse);
+
+    // expire
+    rpc Expire(ExpireRequest) returns (ExpireResponse);
+
+    // persist
+    rpc Persist(PersistRequest) returns (PersistResponse);
+
+    // incr / decr
+    rpc Incr(IncrRequest) returns (IncrResponse);
+    rpc Decr(DecrRequest) returns (DecrResponse);
+
+    // setnx
+    rpc SetNX(SetNXRequest) returns (SetNXResponse);
+
+    // getset
+    rpc GetSet(GetSetRequest) returns (GetSetResponse);
+
+    // mget
+    rpc MGet(MGetRequest) returns (MGetResponse);
+
+    // mset
+    rpc MSet(MSetRequest) returns (MSetResponse);
 }
 
 message GetRequest {
@@ -40,4 +74,103 @@ message DelRequest {
 
 message DelResponse {
     bool status = 1; 
+}
+
+message ExistsRequest {
+    string key = 1;
+}
+
+message ExistsResponse {
+    bool exists = 1;
+}
+
+message KeysRequest {}
+
+message KeysResponse {
+    repeated string keys = 1;
+}
+
+message FlushRequest {}
+
+message FlushResponse {
+    bool status = 1;
+}
+
+message TTLRequest {
+    string key = 1;
+}
+
+message TTLResponse {
+    int64 ttl_seconds = 1;
+    bool found = 2;
+}
+
+message ExpireRequest {
+    string key = 1;
+    int64 ttl = 2;
+}
+
+message ExpireResponse {
+    bool status = 1;
+}
+
+message PersistRequest {
+    string key = 1;
+}
+
+message PersistResponse {
+    bool status = 1;
+}
+
+message IncrRequest {
+    string key = 1;
+}
+
+message IncrResponse {
+    int64 value = 1;
+}
+
+message DecrRequest {
+    string key = 1;
+}
+
+message DecrResponse {
+    int64 value = 1;
+}
+
+message SetNXRequest {
+    string key = 1;
+    bytes value = 2;
+    int64 ttl = 3;
+}
+
+message SetNXResponse {
+    bool success = 1;
+}
+
+message GetSetRequest {
+    string key = 1;
+    bytes value = 2;
+}
+
+message GetSetResponse {
+    bytes old_value = 1;
+    bool found = 2;
+}
+
+message MGetRequest {
+    repeated string keys = 1;
+}
+
+message MGetResponse {
+    map<string, bytes> kv = 1;
+}
+
+message MSetRequest {
+    map<string, bytes> kv = 1;
+    int64 ttl = 2;
+}
+
+message MSetResponse {
+    bool status = 1;
 }

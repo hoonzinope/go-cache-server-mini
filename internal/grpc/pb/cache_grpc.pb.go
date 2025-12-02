@@ -19,9 +19,21 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CacheService_Get_FullMethodName = "/cache.v1.CacheService/Get"
-	CacheService_Set_FullMethodName = "/cache.v1.CacheService/Set"
-	CacheService_Del_FullMethodName = "/cache.v1.CacheService/Del"
+	CacheService_Get_FullMethodName     = "/cache.v1.CacheService/Get"
+	CacheService_Set_FullMethodName     = "/cache.v1.CacheService/Set"
+	CacheService_Del_FullMethodName     = "/cache.v1.CacheService/Del"
+	CacheService_Exists_FullMethodName  = "/cache.v1.CacheService/Exists"
+	CacheService_Keys_FullMethodName    = "/cache.v1.CacheService/Keys"
+	CacheService_Flush_FullMethodName   = "/cache.v1.CacheService/Flush"
+	CacheService_TTL_FullMethodName     = "/cache.v1.CacheService/TTL"
+	CacheService_Expire_FullMethodName  = "/cache.v1.CacheService/Expire"
+	CacheService_Persist_FullMethodName = "/cache.v1.CacheService/Persist"
+	CacheService_Incr_FullMethodName    = "/cache.v1.CacheService/Incr"
+	CacheService_Decr_FullMethodName    = "/cache.v1.CacheService/Decr"
+	CacheService_SetNX_FullMethodName   = "/cache.v1.CacheService/SetNX"
+	CacheService_GetSet_FullMethodName  = "/cache.v1.CacheService/GetSet"
+	CacheService_MGet_FullMethodName    = "/cache.v1.CacheService/MGet"
+	CacheService_MSet_FullMethodName    = "/cache.v1.CacheService/MSet"
 )
 
 // CacheServiceClient is the client API for CacheService service.
@@ -34,6 +46,29 @@ type CacheServiceClient interface {
 	Set(ctx context.Context, in *SetRequest, opts ...grpc.CallOption) (*SetResponse, error)
 	// del
 	Del(ctx context.Context, in *DelRequest, opts ...grpc.CallOption) (*DelResponse, error)
+	// exists
+	Exists(ctx context.Context, in *ExistsRequest, opts ...grpc.CallOption) (*ExistsResponse, error)
+	// keys
+	Keys(ctx context.Context, in *KeysRequest, opts ...grpc.CallOption) (*KeysResponse, error)
+	// flush
+	Flush(ctx context.Context, in *FlushRequest, opts ...grpc.CallOption) (*FlushResponse, error)
+	// ttl
+	TTL(ctx context.Context, in *TTLRequest, opts ...grpc.CallOption) (*TTLResponse, error)
+	// expire
+	Expire(ctx context.Context, in *ExpireRequest, opts ...grpc.CallOption) (*ExpireResponse, error)
+	// persist
+	Persist(ctx context.Context, in *PersistRequest, opts ...grpc.CallOption) (*PersistResponse, error)
+	// incr / decr
+	Incr(ctx context.Context, in *IncrRequest, opts ...grpc.CallOption) (*IncrResponse, error)
+	Decr(ctx context.Context, in *DecrRequest, opts ...grpc.CallOption) (*DecrResponse, error)
+	// setnx
+	SetNX(ctx context.Context, in *SetNXRequest, opts ...grpc.CallOption) (*SetNXResponse, error)
+	// getset
+	GetSet(ctx context.Context, in *GetSetRequest, opts ...grpc.CallOption) (*GetSetResponse, error)
+	// mget
+	MGet(ctx context.Context, in *MGetRequest, opts ...grpc.CallOption) (*MGetResponse, error)
+	// mset
+	MSet(ctx context.Context, in *MSetRequest, opts ...grpc.CallOption) (*MSetResponse, error)
 }
 
 type cacheServiceClient struct {
@@ -74,6 +109,126 @@ func (c *cacheServiceClient) Del(ctx context.Context, in *DelRequest, opts ...gr
 	return out, nil
 }
 
+func (c *cacheServiceClient) Exists(ctx context.Context, in *ExistsRequest, opts ...grpc.CallOption) (*ExistsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExistsResponse)
+	err := c.cc.Invoke(ctx, CacheService_Exists_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cacheServiceClient) Keys(ctx context.Context, in *KeysRequest, opts ...grpc.CallOption) (*KeysResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(KeysResponse)
+	err := c.cc.Invoke(ctx, CacheService_Keys_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cacheServiceClient) Flush(ctx context.Context, in *FlushRequest, opts ...grpc.CallOption) (*FlushResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FlushResponse)
+	err := c.cc.Invoke(ctx, CacheService_Flush_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cacheServiceClient) TTL(ctx context.Context, in *TTLRequest, opts ...grpc.CallOption) (*TTLResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TTLResponse)
+	err := c.cc.Invoke(ctx, CacheService_TTL_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cacheServiceClient) Expire(ctx context.Context, in *ExpireRequest, opts ...grpc.CallOption) (*ExpireResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExpireResponse)
+	err := c.cc.Invoke(ctx, CacheService_Expire_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cacheServiceClient) Persist(ctx context.Context, in *PersistRequest, opts ...grpc.CallOption) (*PersistResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PersistResponse)
+	err := c.cc.Invoke(ctx, CacheService_Persist_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cacheServiceClient) Incr(ctx context.Context, in *IncrRequest, opts ...grpc.CallOption) (*IncrResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(IncrResponse)
+	err := c.cc.Invoke(ctx, CacheService_Incr_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cacheServiceClient) Decr(ctx context.Context, in *DecrRequest, opts ...grpc.CallOption) (*DecrResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DecrResponse)
+	err := c.cc.Invoke(ctx, CacheService_Decr_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cacheServiceClient) SetNX(ctx context.Context, in *SetNXRequest, opts ...grpc.CallOption) (*SetNXResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetNXResponse)
+	err := c.cc.Invoke(ctx, CacheService_SetNX_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cacheServiceClient) GetSet(ctx context.Context, in *GetSetRequest, opts ...grpc.CallOption) (*GetSetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSetResponse)
+	err := c.cc.Invoke(ctx, CacheService_GetSet_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cacheServiceClient) MGet(ctx context.Context, in *MGetRequest, opts ...grpc.CallOption) (*MGetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MGetResponse)
+	err := c.cc.Invoke(ctx, CacheService_MGet_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cacheServiceClient) MSet(ctx context.Context, in *MSetRequest, opts ...grpc.CallOption) (*MSetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MSetResponse)
+	err := c.cc.Invoke(ctx, CacheService_MSet_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CacheServiceServer is the server API for CacheService service.
 // All implementations must embed UnimplementedCacheServiceServer
 // for forward compatibility.
@@ -84,6 +239,29 @@ type CacheServiceServer interface {
 	Set(context.Context, *SetRequest) (*SetResponse, error)
 	// del
 	Del(context.Context, *DelRequest) (*DelResponse, error)
+	// exists
+	Exists(context.Context, *ExistsRequest) (*ExistsResponse, error)
+	// keys
+	Keys(context.Context, *KeysRequest) (*KeysResponse, error)
+	// flush
+	Flush(context.Context, *FlushRequest) (*FlushResponse, error)
+	// ttl
+	TTL(context.Context, *TTLRequest) (*TTLResponse, error)
+	// expire
+	Expire(context.Context, *ExpireRequest) (*ExpireResponse, error)
+	// persist
+	Persist(context.Context, *PersistRequest) (*PersistResponse, error)
+	// incr / decr
+	Incr(context.Context, *IncrRequest) (*IncrResponse, error)
+	Decr(context.Context, *DecrRequest) (*DecrResponse, error)
+	// setnx
+	SetNX(context.Context, *SetNXRequest) (*SetNXResponse, error)
+	// getset
+	GetSet(context.Context, *GetSetRequest) (*GetSetResponse, error)
+	// mget
+	MGet(context.Context, *MGetRequest) (*MGetResponse, error)
+	// mset
+	MSet(context.Context, *MSetRequest) (*MSetResponse, error)
 	mustEmbedUnimplementedCacheServiceServer()
 }
 
@@ -102,6 +280,42 @@ func (UnimplementedCacheServiceServer) Set(context.Context, *SetRequest) (*SetRe
 }
 func (UnimplementedCacheServiceServer) Del(context.Context, *DelRequest) (*DelResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Del not implemented")
+}
+func (UnimplementedCacheServiceServer) Exists(context.Context, *ExistsRequest) (*ExistsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Exists not implemented")
+}
+func (UnimplementedCacheServiceServer) Keys(context.Context, *KeysRequest) (*KeysResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Keys not implemented")
+}
+func (UnimplementedCacheServiceServer) Flush(context.Context, *FlushRequest) (*FlushResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Flush not implemented")
+}
+func (UnimplementedCacheServiceServer) TTL(context.Context, *TTLRequest) (*TTLResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TTL not implemented")
+}
+func (UnimplementedCacheServiceServer) Expire(context.Context, *ExpireRequest) (*ExpireResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Expire not implemented")
+}
+func (UnimplementedCacheServiceServer) Persist(context.Context, *PersistRequest) (*PersistResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Persist not implemented")
+}
+func (UnimplementedCacheServiceServer) Incr(context.Context, *IncrRequest) (*IncrResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Incr not implemented")
+}
+func (UnimplementedCacheServiceServer) Decr(context.Context, *DecrRequest) (*DecrResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Decr not implemented")
+}
+func (UnimplementedCacheServiceServer) SetNX(context.Context, *SetNXRequest) (*SetNXResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetNX not implemented")
+}
+func (UnimplementedCacheServiceServer) GetSet(context.Context, *GetSetRequest) (*GetSetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSet not implemented")
+}
+func (UnimplementedCacheServiceServer) MGet(context.Context, *MGetRequest) (*MGetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MGet not implemented")
+}
+func (UnimplementedCacheServiceServer) MSet(context.Context, *MSetRequest) (*MSetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MSet not implemented")
 }
 func (UnimplementedCacheServiceServer) mustEmbedUnimplementedCacheServiceServer() {}
 func (UnimplementedCacheServiceServer) testEmbeddedByValue()                      {}
@@ -178,6 +392,222 @@ func _CacheService_Del_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CacheService_Exists_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExistsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).Exists(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_Exists_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).Exists(ctx, req.(*ExistsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CacheService_Keys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(KeysRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).Keys(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_Keys_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).Keys(ctx, req.(*KeysRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CacheService_Flush_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FlushRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).Flush(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_Flush_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).Flush(ctx, req.(*FlushRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CacheService_TTL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TTLRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).TTL(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_TTL_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).TTL(ctx, req.(*TTLRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CacheService_Expire_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExpireRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).Expire(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_Expire_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).Expire(ctx, req.(*ExpireRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CacheService_Persist_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PersistRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).Persist(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_Persist_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).Persist(ctx, req.(*PersistRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CacheService_Incr_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IncrRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).Incr(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_Incr_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).Incr(ctx, req.(*IncrRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CacheService_Decr_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DecrRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).Decr(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_Decr_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).Decr(ctx, req.(*DecrRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CacheService_SetNX_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetNXRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).SetNX(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_SetNX_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).SetNX(ctx, req.(*SetNXRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CacheService_GetSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).GetSet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_GetSet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).GetSet(ctx, req.(*GetSetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CacheService_MGet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MGetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).MGet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_MGet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).MGet(ctx, req.(*MGetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CacheService_MSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MSetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).MSet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_MSet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).MSet(ctx, req.(*MSetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CacheService_ServiceDesc is the grpc.ServiceDesc for CacheService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -196,6 +626,54 @@ var CacheService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Del",
 			Handler:    _CacheService_Del_Handler,
+		},
+		{
+			MethodName: "Exists",
+			Handler:    _CacheService_Exists_Handler,
+		},
+		{
+			MethodName: "Keys",
+			Handler:    _CacheService_Keys_Handler,
+		},
+		{
+			MethodName: "Flush",
+			Handler:    _CacheService_Flush_Handler,
+		},
+		{
+			MethodName: "TTL",
+			Handler:    _CacheService_TTL_Handler,
+		},
+		{
+			MethodName: "Expire",
+			Handler:    _CacheService_Expire_Handler,
+		},
+		{
+			MethodName: "Persist",
+			Handler:    _CacheService_Persist_Handler,
+		},
+		{
+			MethodName: "Incr",
+			Handler:    _CacheService_Incr_Handler,
+		},
+		{
+			MethodName: "Decr",
+			Handler:    _CacheService_Decr_Handler,
+		},
+		{
+			MethodName: "SetNX",
+			Handler:    _CacheService_SetNX_Handler,
+		},
+		{
+			MethodName: "GetSet",
+			Handler:    _CacheService_GetSet_Handler,
+		},
+		{
+			MethodName: "MGet",
+			Handler:    _CacheService_MGet_Handler,
+		},
+		{
+			MethodName: "MSet",
+			Handler:    _CacheService_MSet_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

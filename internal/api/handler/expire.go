@@ -16,12 +16,13 @@ type ExpireHandler struct {
 }
 
 func (h *ExpireHandler) Expire(c *gin.Context) {
+	ctx := c.Request.Context()
 	var expireReq dto.ExpireRequest
 	if err := c.ShouldBindJSON(&expireReq); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
-	expireErr := h.Cache.Expire(expireReq.Key, time.Duration(expireReq.TTL)*time.Second)
+	expireErr := h.Cache.Expire(ctx, expireReq.Key, time.Duration(expireReq.TTL)*time.Second)
 	if expireErr != nil {
 		if errors.Is(expireErr, internal.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": internal.ErrNotFound.Error()})
