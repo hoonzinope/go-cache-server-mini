@@ -72,6 +72,7 @@ func mustJSON(t *testing.T, payload any) []byte {
 
 func TestSetHandler(t *testing.T) {
 	cache := newHandlerTestCache(t)
+	ctx := context.Background()
 	handler := SetHandler{Cache: cache}
 
 	body := mustJSON(t, map[string]any{"key": "foo", "value": "bar", "ttl": 1})
@@ -81,7 +82,7 @@ func TestSetHandler(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
-	_, ok, err := cache.Get("foo")
+	_, ok, err := cache.Get(ctx, "foo")
 	if err != nil || !ok {
 		t.Fatalf("expected key to be set in cache, but got ok=%v, err=%v", ok, err)
 	}
@@ -89,7 +90,8 @@ func TestSetHandler(t *testing.T) {
 
 func TestGetHandler(t *testing.T) {
 	cache := newHandlerTestCache(t)
-	if err := cache.Set("foo", []byte(`"bar"`), 5*time.Second); err != nil {
+	ctx := context.Background()
+	if err := cache.Set(ctx, "foo", []byte(`"bar"`), 5*time.Second); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
 
@@ -118,7 +120,8 @@ func TestGetHandler(t *testing.T) {
 
 func TestDelHandler(t *testing.T) {
 	cache := newHandlerTestCache(t)
-	if err := cache.Set("foo", []byte("1"), 0); err != nil {
+	ctx := context.Background()
+	if err := cache.Set(ctx, "foo", []byte("1"), 0); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
 
@@ -129,7 +132,7 @@ func TestDelHandler(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
-	exists, err := cache.Exists("foo")
+	exists, err := cache.Exists(ctx, "foo")
 	if exists || err != nil {
 		t.Fatalf("expected key to be deleted")
 	}
@@ -137,7 +140,8 @@ func TestDelHandler(t *testing.T) {
 
 func TestExistsHandler(t *testing.T) {
 	cache := newHandlerTestCache(t)
-	if err := cache.Set("foo", []byte("1"), 0); err != nil {
+	ctx := context.Background()
+	if err := cache.Set(ctx, "foo", []byte("1"), 0); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
 
@@ -162,10 +166,11 @@ func TestExistsHandler(t *testing.T) {
 
 func TestKeysHandler(t *testing.T) {
 	cache := newHandlerTestCache(t)
-	if err := cache.Set("a", []byte("1"), 0); err != nil {
+	ctx := context.Background()
+	if err := cache.Set(ctx, "a", []byte("1"), 0); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
-	if err := cache.Set("b", []byte("2"), 0); err != nil {
+	if err := cache.Set(ctx, "b", []byte("2"), 0); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
 
@@ -192,7 +197,8 @@ func TestKeysHandler(t *testing.T) {
 
 func TestFlushHandler(t *testing.T) {
 	cache := newHandlerTestCache(t)
-	if err := cache.Set("a", []byte("1"), 0); err != nil {
+	ctx := context.Background()
+	if err := cache.Set(ctx, "a", []byte("1"), 0); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
 
@@ -203,7 +209,7 @@ func TestFlushHandler(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
-	keys, err := cache.Keys()
+	keys, err := cache.Keys(ctx)
 	if err != nil {
 		t.Fatalf("Keys returned error: %v", err)
 	}
@@ -214,7 +220,8 @@ func TestFlushHandler(t *testing.T) {
 
 func TestExpireHandler(t *testing.T) {
 	cache := newHandlerTestCache(t)
-	if err := cache.Set("ttl", []byte("1"), 5*time.Second); err != nil {
+	ctx := context.Background()
+	if err := cache.Set(ctx, "ttl", []byte("1"), 5*time.Second); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
 
@@ -226,7 +233,7 @@ func TestExpireHandler(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
-	ttl, ok, err := cache.TTL("ttl")
+	ttl, ok, err := cache.TTL(ctx, "ttl")
 	if err != nil {
 		t.Fatalf("TTL returned error: %v", err)
 	}
@@ -237,10 +244,11 @@ func TestExpireHandler(t *testing.T) {
 
 func TestTTLHandlerReturnsPersistentTTL(t *testing.T) {
 	cache := newHandlerTestCache(t)
-	if err := cache.Set("persist-key", []byte("1"), 0); err != nil {
+	ctx := context.Background()
+	if err := cache.Set(ctx, "persist-key", []byte("1"), 0); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
-	if err := cache.Persist("persist-key"); err != nil {
+	if err := cache.Persist(ctx, "persist-key"); err != nil {
 		t.Fatalf("Persist returned error: %v", err)
 	}
 
@@ -263,7 +271,8 @@ func TestTTLHandlerReturnsPersistentTTL(t *testing.T) {
 
 func TestPersistHandler(t *testing.T) {
 	cache := newHandlerTestCache(t)
-	if err := cache.Set("persist", []byte("1"), 5*time.Second); err != nil {
+	ctx := context.Background()
+	if err := cache.Set(ctx, "persist", []byte("1"), 5*time.Second); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
 
@@ -274,7 +283,7 @@ func TestPersistHandler(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
-	ttl, ok, err := cache.TTL("persist")
+	ttl, ok, err := cache.TTL(ctx, "persist")
 	if err != nil {
 		t.Fatalf("TTL returned error: %v", err)
 	}
@@ -285,7 +294,8 @@ func TestPersistHandler(t *testing.T) {
 
 func TestIncrHandler(t *testing.T) {
 	cache := newHandlerTestCache(t)
-	if err := cache.Set("count", []byte("1"), 0); err != nil {
+	ctx := context.Background()
+	if err := cache.Set(ctx, "count", []byte("1"), 0); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
 
@@ -314,7 +324,8 @@ func TestIncrHandler(t *testing.T) {
 
 func TestDecrHandler(t *testing.T) {
 	cache := newHandlerTestCache(t)
-	if err := cache.Set("count", []byte("2"), 0); err != nil {
+	ctx := context.Background()
+	if err := cache.Set(ctx, "count", []byte("2"), 0); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
 
@@ -368,7 +379,8 @@ func TestSetNXHandler(t *testing.T) {
 
 func TestGetSetHandler(t *testing.T) {
 	cache := newHandlerTestCache(t)
-	if err := cache.Set("swap", []byte(`"old"`), 0); err != nil {
+	ctx := context.Background()
+	if err := cache.Set(ctx, "swap", []byte(`"old"`), 0); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
 
@@ -391,7 +403,7 @@ func TestGetSetHandler(t *testing.T) {
 		t.Fatalf("expected old value old, got %s", old)
 	}
 
-	value, _, err := cache.Get("swap")
+	value, _, err := cache.Get(ctx, "swap")
 	if err != nil {
 		t.Fatalf("failed to get value from cache: %v", err)
 	}
@@ -402,10 +414,11 @@ func TestGetSetHandler(t *testing.T) {
 
 func TestMGetHandlerReturnsValues(t *testing.T) {
 	cache := newHandlerTestCache(t)
-	if err := cache.Set("a", []byte("1"), 5*time.Second); err != nil {
+	ctx := context.Background()
+	if err := cache.Set(ctx, "a", []byte("1"), 5*time.Second); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
-	if err := cache.Set("b", []byte("2"), 5*time.Second); err != nil {
+	if err := cache.Set(ctx, "b", []byte("2"), 5*time.Second); err != nil {
 		t.Fatalf("Set returned error: %v", err)
 	}
 
@@ -434,6 +447,7 @@ func TestMGetHandlerReturnsValues(t *testing.T) {
 
 func TestMSetHandler(t *testing.T) {
 	cache := newHandlerTestCache(t)
+	ctx := context.Background()
 	handler := MSetHandler{Cache: cache}
 
 	body := mustJSON(t, map[string]any{
@@ -450,10 +464,10 @@ func TestMSetHandler(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", w.Code)
 	}
 
-	if value, ok, err := cache.Get("a"); !ok || err != nil || string(value) != `"1"` {
+	if value, ok, err := cache.Get(ctx, "a"); !ok || err != nil || string(value) != `"1"` {
 		t.Fatalf("expected key a to be set, got %s ok=%v err=%v", value, ok, err)
 	}
-	if value, ok, err := cache.Get("b"); !ok || err != nil || string(value) != `"2"` {
+	if value, ok, err := cache.Get(ctx, "b"); !ok || err != nil || string(value) != `"2"` {
 		t.Fatalf("expected key b to be set, got %s ok=%v err=%v", value, ok, err)
 	}
 }

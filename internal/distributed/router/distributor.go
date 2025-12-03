@@ -1,223 +1,280 @@
 package router
 
 import (
-	"errors"
+	"context"
+	"go-cache-server-mini/internal/distributed/adapter"
+	"log"
 	"time"
 )
 
 type Distributor struct {
-	nodeRouter *NodeRouter
+	nodeRouter   *NodeRouter
+	localAdapter adapter.AdapterInterface
 }
 
 func NewDistributor(nodeRouter *NodeRouter) *Distributor {
+	localAdapter := nodeRouter.GetLocalAdapter()
+	if localAdapter == nil {
+		log.Println("Local adapter not found in node router")
+		return nil
+	}
 	return &Distributor{
-		nodeRouter: nodeRouter,
+		nodeRouter:   nodeRouter,
+		localAdapter: localAdapter,
 	}
 }
 
-func (d *Distributor) Set(key string, value []byte, expiration time.Duration) error {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return errors.New("local adapter not found")
-	}
-	if err := localAdapter.SetItem(key, value, expiration); err != nil {
+func (d *Distributor) Set(ctx context.Context, key string, value []byte, expiration time.Duration) error {
+	localAdapter := d.localAdapter
+	if err := localAdapter.SetItem(ctx, key, value, expiration); err != nil {
 		return err
 	}
 
-	// TODO: Optimize by setting only on relevant adapters
-	// adapters, err := d.nodeRouter.GetAdapters(key)
-	// if err != nil {
-	// 	return err
-	// }
-	// go func() {
-	// 	for _, adapter := range adapters {
-	// 		adapter.SetItem(key, value, expiration)
-	// 	}
-	// }()
+	// Create a context that cannot be canceled
+	ctxwoCancel := context.WithoutCancel(ctx)
+	adapters, err := d.nodeRouter.GetAdapters(key)
+	if err != nil {
+		return err
+	}
+	go func() {
+		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
+			if err := adapter.SetItem(ctxwoCancel, key, value, expiration); err != nil {
+				log.Printf("Failed to replicate set item for key %s: %v", key, err)
+			}
+		}
+	}()
 	return nil
 }
 
-func (d *Distributor) Get(key string) ([]byte, bool, error) {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return nil, false, errors.New("local adapter not found")
-	}
-	if value, found := localAdapter.GetItem(key); found {
+func (d *Distributor) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	localAdapter := d.localAdapter
+	if value, found := localAdapter.GetItem(ctx, key); found {
 		return value, true, nil
 	}
 
 	// TODO: Optimize by getting from only relevant adapters
+	adapters, err := d.nodeRouter.GetAdapters(key)
+	if err != nil {
+		return nil, false, err
+	}
+	for _, adapter := range adapters {
+		if value, found := adapter.GetItem(ctx, key); found {
+			return value, true, nil
+		}
+	}
 	return nil, false, nil
 }
 
-func (d *Distributor) Del(key string) error {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return errors.New("local adapter not found")
-	}
-	if err := localAdapter.DeleteItem(key); err != nil {
+func (d *Distributor) Del(ctx context.Context, key string) error {
+	localAdapter := d.localAdapter
+	if err := localAdapter.DeleteItem(ctx, key); err != nil {
 		return err
 	}
 
 	// TODO: Optimize by deleting from only relevant adapters
+	adapters, err := d.nodeRouter.GetAdapters(key)
+	if err != nil {
+		return err
+	}
+	go func() {
+		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
+			adapter.DeleteItem(ctx, key)
+		}
+	}()
 	return nil
 }
 
-func (d *Distributor) Exists(key string) (bool, error) {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return false, errors.New("local adapter not found")
-	}
-	if localAdapter.ExistsItem(key) {
+func (d *Distributor) Exists(ctx context.Context, key string) (bool, error) {
+	localAdapter := d.localAdapter
+	if localAdapter.ExistsItem(ctx, key) {
 		return true, nil
 	}
 
 	// TODO: Optimize by checking only relevant adapters
+	adapters, err := d.nodeRouter.GetAdapters(key)
+	if err != nil {
+		return false, err
+	}
+	for _, adapter := range adapters {
+		if adapter.ExistsItem(ctx, key) {
+			return true, nil
+		}
+	}
 	return false, nil
 }
 
-func (d *Distributor) Keys() ([]string, error) {
-	var allKeys []string
-	localAdapter := d.nodeRouter.GetLocalAdapter()
+func (d *Distributor) Keys(ctx context.Context) ([]string, error) {
+	keySet := make(map[string]struct{})
+	localAdapter := d.localAdapter
 	if localAdapter != nil {
-		keys := localAdapter.ListKeys()
-		allKeys = append(allKeys, keys...)
-	} else {
-		return nil, errors.New("local adapter not found")
+		keys := localAdapter.ListKeys(ctx)
+		for _, key := range keys {
+			keySet[key] = struct{}{}
+		}
 	}
-	// TODO: Consider fetching keys from other adapters if needed
+	adapters, err := d.nodeRouter.GetAllAdapters()
+	if err != nil {
+		return nil, err
+	}
+	for _, adapter := range adapters {
+		if adapter == localAdapter {
+			continue
+		}
+		keys := adapter.ListKeys(ctx)
+		for _, key := range keys {
+			keySet[key] = struct{}{}
+		}
+	}
+	allKeys := make([]string, 0, len(keySet))
+	for key := range keySet {
+		allKeys = append(allKeys, key)
+	}
 	return allKeys, nil
 }
 
-func (d *Distributor) Flush() error {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return errors.New("local adapter not found")
+func (d *Distributor) Flush(ctx context.Context) error {
+	localAdapter := d.localAdapter
+	if err := localAdapter.ClearCache(ctx); err != nil {
+		return err
 	}
-	// TODO: Consider flushing other adapters if needed
-	return localAdapter.ClearCache()
+	adapters, err := d.nodeRouter.GetAllAdapters()
+	if err != nil {
+		return err
+	}
+	ctxwoCancel := context.WithoutCancel(ctx)
+	go func() {
+		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
+			if err := adapter.ClearCache(ctxwoCancel); err != nil {
+				log.Printf("Failed to replicate flush: %v", err)
+			}
+		}
+	}()
+	return nil
 }
 
-func (d *Distributor) TTL(key string) (time.Duration, bool, error) {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return 0, false, errors.New("local adapter not found")
-	}
-	if ttl, found := localAdapter.GetTTL(key); found {
+func (d *Distributor) TTL(ctx context.Context, key string) (time.Duration, bool, error) {
+	localAdapter := d.localAdapter
+	if ttl, found := localAdapter.GetTTL(ctx, key); found {
 		return ttl, true, nil
 	}
-	// TODO: Optimize by getting from only relevant adapters
-	// adapters, err := d.nodeRouter.GetAdapters(key)
-	// if err != nil {
-	// 	return 0, false
-	// }
-	// for _, adapter := range adapters {
-	// 	if ttl, found := adapter.GetTTL(key); found {
-	// 		return ttl, true, nil
-	// 	}
-	// }
+	adapters, err := d.nodeRouter.GetAdapters(key)
+	if err != nil {
+		return 0, false, err
+	}
+	for _, adapter := range adapters {
+		if ttl, found := adapter.GetTTL(ctx, key); found {
+			return ttl, true, nil
+		}
+	}
 	return 0, false, nil
 }
 
-func (d *Distributor) Expire(key string, expiration time.Duration) error {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return errors.New("local adapter not found")
-	}
-	if err := localAdapter.UpdateExpiration(key, expiration); err != nil {
+func (d *Distributor) Expire(ctx context.Context, key string, expiration time.Duration) error {
+	localAdapter := d.localAdapter
+	if err := localAdapter.UpdateExpiration(ctx, key, expiration); err != nil {
 		return err
 	}
 	// TODO: Optimize by updating only on relevant adapters
-	// adapters, err := d.nodeRouter.GetAdapters(key)
-	// if err != nil {
-	// 	return err
-	// }
-	// for _, adapter := range adapters {
-	// 	if err := adapter.UpdateExpiration(key, expiration); err != nil {
-	// 		return err
-	// 	}
-	// }
-	return nil
-}
-
-func (d *Distributor) Persist(key string) error {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return errors.New("local adapter not found")
-	}
-	if err := localAdapter.RemoveExpiration(key); err != nil {
+	adapters, err := d.nodeRouter.GetAdapters(key)
+	if err != nil {
 		return err
 	}
-	// TODO: Optimize by removing only from relevant adapters
-	// adapters, err := d.nodeRouter.GetAdapters(key)
-	// if err != nil {
-	// 	return err
-	// }
-	// for _, adapter := range adapters {
-	// 	if err := adapter.RemoveExpiration(key); err != nil {
-	// 		return err
-	// 	}
-	// }
+	go func() {
+		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
+			if err := adapter.UpdateExpiration(ctx, key, expiration); err != nil {
+				return
+			}
+		}
+	}()
 	return nil
 }
 
-func (d *Distributor) Incr(key string) (int64, error) {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return 0, errors.New("local adapter not found")
+func (d *Distributor) Persist(ctx context.Context, key string) error {
+	localAdapter := d.localAdapter
+	if err := localAdapter.RemoveExpiration(ctx, key); err != nil {
+		return err
 	}
-	val, err := localAdapter.Increment(key)
+	adapters, err := d.nodeRouter.GetAdapters(key)
+	if err != nil {
+		return err
+	}
+	go func() {
+		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
+			if err := adapter.RemoveExpiration(ctx, key); err != nil {
+				return
+			}
+		}
+	}()
+	return nil
+}
+
+func (d *Distributor) Incr(ctx context.Context, key string) (int64, error) {
+	localAdapter := d.localAdapter
+	val, err := localAdapter.Increment(ctx, key)
 	if err != nil {
 		return 0, err
 	}
 
-	// TODO: Optimize by incrementing only on relevant adapters
-	// adapters, err := d.nodeRouter.GetAdapters(key)
-	// if err != nil {
-	// 	return 0, err
-	// }
-	// var result int64
-	// for _, adapter := range adapters {
-	// 	val, err := adapter.Increment(key)
-	// 	if err != nil {
-	// 		return 0, err
-	// 	}
-	// 	result = val
-	// }
-	return val, nil
-}
-
-func (d *Distributor) Decr(key string) (int64, error) {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return 0, errors.New("local adapter not found")
-	}
-	val, err := localAdapter.Decrement(key)
+	ctxwoCancel := context.WithoutCancel(ctx)
+	adapters, err := d.nodeRouter.GetAdapters(key)
 	if err != nil {
 		return 0, err
 	}
-	// TODO: Optimize by decrementing only on relevant adapters
-	// adapters, err := d.nodeRouter.GetAdapters(key)
-	// if err != nil {
-	// 	return 0, err
-	// }
-	// var result int64
-	// for _, adapter := range adapters {
-	// 	val, err := adapter.Decrement(key)
-	// 	if err != nil {
-	// 		return 0, err
-	// 	}
-	// 	result = val
-	// }
+	go func() {
+		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
+			if _, err := adapter.Increment(ctxwoCancel, key); err != nil {
+				log.Printf("Failed to replicate increment for key %s: %v", key, err)
+			}
+		}
+	}()
 	return val, nil
 }
 
-func (d *Distributor) SetNX(key string, value []byte, expiration time.Duration) (bool, error) {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return false, errors.New("local adapter not found")
+func (d *Distributor) Decr(ctx context.Context, key string) (int64, error) {
+	localAdapter := d.localAdapter
+	val, err := localAdapter.Decrement(ctx, key)
+	if err != nil {
+		return 0, err
 	}
-	success, err := localAdapter.SetIfNotExists(key, value, expiration)
+	ctxwoCancel := context.WithoutCancel(ctx)
+	adapters, err := d.nodeRouter.GetAdapters(key)
+	if err != nil {
+		return 0, err
+	}
+	go func() {
+		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
+			if _, err := adapter.Decrement(ctxwoCancel, key); err != nil {
+				log.Printf("Failed to replicate decrement for key %s: %v", key, err)
+			}
+		}
+	}()
+	return val, nil
+}
+
+func (d *Distributor) SetNX(ctx context.Context, key string, value []byte, expiration time.Duration) (bool, error) {
+	localAdapter := d.localAdapter
+	success, err := localAdapter.SetIfNotExists(ctx, key, value, expiration)
 	if err != nil {
 		return false, err
 	}
@@ -225,29 +282,29 @@ func (d *Distributor) SetNX(key string, value []byte, expiration time.Duration) 
 		return true, nil
 	}
 	// TODO: Optimize by setting only on relevant adapters
-	// adapters, err := d.nodeRouter.GetAdapters(key)
-	// if err != nil {
-	// 	return false, err
-	// }
-	// var setSuccess bool
-	// for _, adapter := range adapters {
-	// 	success, err := adapter.SetIfNotExists(key, value, expiration)
-	// 	if err != nil {
-	// 		return false, err
-	// 	}
-	// 	if success {
-	// 		setSuccess = true
-	// 	}
-	// }
-	return success, nil
+	adapters, err := d.nodeRouter.GetAdapters(key)
+	if err != nil {
+		return false, err
+	}
+	var setSuccess bool
+	for _, adapter := range adapters {
+		if adapter == localAdapter {
+			continue
+		}
+		success, err := adapter.SetIfNotExists(ctx, key, value, expiration)
+		if err != nil {
+			return false, err
+		}
+		if success {
+			setSuccess = true
+		}
+	}
+	return setSuccess, nil
 }
 
-func (d *Distributor) GetSet(key string, value []byte) ([]byte, error) {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return nil, errors.New("local adapter not found")
-	}
-	oldValue, err := localAdapter.GetAndSet(key, value)
+func (d *Distributor) GetSet(ctx context.Context, key string, value []byte) ([]byte, error) {
+	localAdapter := d.localAdapter
+	oldValue, err := localAdapter.GetAndSet(ctx, key, value)
 	if err != nil {
 		return nil, err
 	}
@@ -256,39 +313,69 @@ func (d *Distributor) GetSet(key string, value []byte) ([]byte, error) {
 	}
 
 	// TODO : Optimize by getting and setting on only relevant adapters
-	// adapters, err := d.nodeRouter.GetAdapters(key)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// var oldValue []byte
-	// for _, adapter := range adapters {
-	// 	val, err := adapter.GetAndSet(key, value)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	oldValue = val
-	// }
+	adapters, err := d.nodeRouter.GetAdapters(key)
+	if err != nil {
+		return nil, err
+	}
+	for _, adapter := range adapters {
+		if adapter == localAdapter {
+			continue
+		}
+		val, err := adapter.GetAndSet(ctx, key, value)
+		if err != nil {
+			return nil, err
+		}
+		oldValue = val
+	}
 	return oldValue, nil
 }
 
-func (d *Distributor) MGet(keys []string) (map[string][]byte, error) {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return nil, errors.New("local adapter not found")
+func (d *Distributor) MGet(ctx context.Context, keys []string) (map[string][]byte, error) {
+	localAdapter := d.localAdapter
+	result := localAdapter.GetMultiple(ctx, keys)
+	for _, key := range keys {
+		if _, exists := result[key]; exists {
+			continue
+		}
+		adapters, err := d.nodeRouter.GetAdapters(key)
+		if err != nil {
+			return nil, err
+		}
+		for _, adapter := range adapters {
+			if value, found := adapter.GetItem(ctx, key); found {
+				result[key] = value
+				break
+			}
+		}
 	}
-	result := localAdapter.GetMultiple(keys)
-	// TODO: Optimize by getting from only relevant adapters
 	return result, nil
 }
 
-func (d *Distributor) MSet(kv map[string][]byte, expiration time.Duration) error {
-	localAdapter := d.nodeRouter.GetLocalAdapter()
-	if localAdapter == nil {
-		return errors.New("local adapter not found")
-	}
-	if err := localAdapter.SetMultiple(kv, expiration); err != nil {
+func (d *Distributor) MSet(ctx context.Context, kv map[string][]byte, expiration time.Duration) error {
+	localAdapter := d.localAdapter
+	if err := localAdapter.SetMultiple(ctx, kv, expiration); err != nil {
 		return err
 	}
-	// TODO: Optimize by setting only on relevant adapters
+
+	ctxwoCancel := context.WithoutCancel(ctx)
+	for key := range kv {
+		value := kv[key]
+		adapters, err := d.nodeRouter.GetAdapters(key)
+		if err != nil {
+			return err
+		}
+		keyCopy := key
+		valueCopy := value
+		go func() {
+			for _, adapter := range adapters {
+				if adapter == localAdapter {
+					continue
+				}
+				if err := adapter.SetItem(ctxwoCancel, keyCopy, valueCopy, expiration); err != nil {
+					log.Printf("Failed to replicate set item for key %s: %v", keyCopy, err)
+				}
+			}
+		}()
+	}
 	return nil
 }

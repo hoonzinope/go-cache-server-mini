@@ -16,6 +16,7 @@ type SetHandler struct {
 }
 
 func (h *SetHandler) Set(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req dto.SetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("Error binding JSON: %v", err.Error())
@@ -24,7 +25,7 @@ func (h *SetHandler) Set(c *gin.Context) {
 	}
 
 	ttl := time.Duration(req.TTL) * time.Second
-	setErr := h.Cache.Set(req.Key, req.Value, ttl)
+	setErr := h.Cache.Set(ctx, req.Key, req.Value, ttl)
 	if setErr != nil {
 		log.Printf("Error setting cache: %v", setErr.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": internal.ErrServer.Error()})

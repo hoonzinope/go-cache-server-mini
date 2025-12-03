@@ -15,13 +15,14 @@ type GetHandler struct {
 }
 
 func (h *GetHandler) Get(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req dto.KeyRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		log.Printf("Error binding query: %v", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
-	value, ok, err := h.Cache.Get(req.Key)
+	value, ok, err := h.Cache.Get(ctx, req.Key)
 	if err != nil {
 		log.Printf("Error getting cache : %v for key: %s", err.Error(), req.Key)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": internal.ErrServer.Error()})

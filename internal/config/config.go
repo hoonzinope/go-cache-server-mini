@@ -24,6 +24,7 @@ type HTTPConfig struct {
 
 type DistributedConfig struct {
 	Enabled           bool   `yaml:"enabled"`
+	GRPCPort          int    `yaml:"grpc_port"`
 	SwarmServiceName  string `yaml:"swarm_service_name"`
 	UpdateInterval    int64  `yaml:"update_interval"` // in seconds
 	ReplicationFactor int    `yaml:"replication_factor"`

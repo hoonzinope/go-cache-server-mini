@@ -17,13 +17,14 @@ type IncrHandler struct {
 }
 
 func (h *IncrHandler) Incr(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req dto.KeyRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		log.Printf("Error binding query: %v", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
-	newValue, incrErr := h.Cache.Incr(req.Key)
+	newValue, incrErr := h.Cache.Incr(ctx, req.Key)
 	if incrErr != nil {
 		if incrErr == internal.ErrNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": internal.ErrNotFound.Error()})

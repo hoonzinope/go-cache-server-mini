@@ -17,13 +17,14 @@ type DecrHandler struct {
 }
 
 func (h *DecrHandler) Decr(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req dto.KeyRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		log.Printf("Error binding query: %v", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
-	newValue, decrErr := h.Cache.Decr(req.Key)
+	newValue, decrErr := h.Cache.Decr(ctx, req.Key)
 	if decrErr != nil {
 		if decrErr == internal.ErrNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": internal.ErrNotFound.Error()})

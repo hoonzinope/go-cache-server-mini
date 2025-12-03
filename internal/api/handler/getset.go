@@ -14,12 +14,13 @@ type GetSetHandler struct {
 }
 
 func (h *GetSetHandler) GetSet(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req dto.GetSetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
-	oldValue, getSetErr := h.Cache.GetSet(req.Key, req.Value)
+	oldValue, getSetErr := h.Cache.GetSet(ctx, req.Key, req.Value)
 	if getSetErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": internal.ErrServer.Error()})
 		return

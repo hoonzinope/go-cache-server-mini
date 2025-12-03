@@ -14,13 +14,14 @@ type TTLHandler struct {
 }
 
 func (h *TTLHandler) TTL(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req dto.KeyRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": internal.ErrBadRequest.Error()})
 		return
 	}
 
-	ttl, exists, err := h.Cache.TTL(req.Key)
+	ttl, exists, err := h.Cache.TTL(ctx, req.Key)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

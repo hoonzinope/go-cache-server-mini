@@ -8,6 +8,7 @@ import (
 	"go-cache-server-mini/internal/core"
 	"go-cache-server-mini/internal/distributed/adapter"
 	"go-cache-server-mini/internal/distributed/router"
+	"go-cache-server-mini/internal/grpc/server"
 	"log"
 	"os"
 	"os/signal"
@@ -60,6 +61,7 @@ func start(errChan chan<- error) {
 		log.Fatalf("Failed to create node router: %v", err)
 	}
 	cacheDistributor := router.NewDistributor(nodeRouter)
+	localCacheDistributor := router.NewLocalDistributor(nodeRouter)
 
 	// Start the API server
 	if config.HTTP.Enabled {
@@ -68,7 +70,28 @@ func start(errChan chan<- error) {
 			defer wg.Done()
 			addr := config.HTTP.Address
 			fmt.Println("Starting API server on", addr)
-			if err := api.StartAPIServer(ctx, addr, cacheDistributor); err != nil {
+			var connectDistributor router.DistributorInterface
+			if !config.Distributed.Enabled {
+				connectDistributor = localCacheDistributor
+			} else {
+				connectDistributor = cacheDistributor
+			}
+
+			if err := api.StartAPIServer(ctx, addr, connectDistributor); err != nil {
+				errChan <- err
+			}
+		}()
+	}
+
+	if config.Distributed.Enabled {
+		// Start the gRPC server for inter-node communication
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			addr := fmt.Sprintf(":%d", config.Distributed.GRPCPort)
+			fmt.Println("Starting gRPC cache server on", addr)
+			err := server.StartGRPCCacheServer(ctx, addr, localCacheDistributor)
+			if err != nil {
 				errChan <- err
 			}
 		}()
