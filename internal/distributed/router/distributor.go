@@ -38,6 +38,9 @@ func (d *Distributor) Set(ctx context.Context, key string, value []byte, expirat
 	}
 	go func() {
 		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
 			if err := adapter.SetItem(ctxwoCancel, key, value, expiration); err != nil {
 				log.Printf("Failed to replicate set item for key %s: %v", key, err)
 			}
@@ -78,6 +81,9 @@ func (d *Distributor) Del(ctx context.Context, key string) error {
 	}
 	go func() {
 		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
 			adapter.DeleteItem(ctx, key)
 		}
 	}()
@@ -104,20 +110,55 @@ func (d *Distributor) Exists(ctx context.Context, key string) (bool, error) {
 }
 
 func (d *Distributor) Keys(ctx context.Context) ([]string, error) {
-	var allKeys []string
+	keySet := make(map[string]struct{})
 	localAdapter := d.localAdapter
 	if localAdapter != nil {
 		keys := localAdapter.ListKeys(ctx)
-		allKeys = append(allKeys, keys...)
+		for _, key := range keys {
+			keySet[key] = struct{}{}
+		}
 	}
-	// TODO: Consider fetching keys from other adapters if needed
+	adapters, err := d.nodeRouter.GetAllAdapters()
+	if err != nil {
+		return nil, err
+	}
+	for _, adapter := range adapters {
+		if adapter == localAdapter {
+			continue
+		}
+		keys := adapter.ListKeys(ctx)
+		for _, key := range keys {
+			keySet[key] = struct{}{}
+		}
+	}
+	allKeys := make([]string, 0, len(keySet))
+	for key := range keySet {
+		allKeys = append(allKeys, key)
+	}
 	return allKeys, nil
 }
 
 func (d *Distributor) Flush(ctx context.Context) error {
 	localAdapter := d.localAdapter
-	// TODO: Consider flushing other adapters if needed
-	return localAdapter.ClearCache(ctx)
+	if err := localAdapter.ClearCache(ctx); err != nil {
+		return err
+	}
+	adapters, err := d.nodeRouter.GetAllAdapters()
+	if err != nil {
+		return err
+	}
+	ctxwoCancel := context.WithoutCancel(ctx)
+	go func() {
+		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
+			if err := adapter.ClearCache(ctxwoCancel); err != nil {
+				log.Printf("Failed to replicate flush: %v", err)
+			}
+		}
+	}()
+	return nil
 }
 
 func (d *Distributor) TTL(ctx context.Context, key string) (time.Duration, bool, error) {
@@ -125,16 +166,15 @@ func (d *Distributor) TTL(ctx context.Context, key string) (time.Duration, bool,
 	if ttl, found := localAdapter.GetTTL(ctx, key); found {
 		return ttl, true, nil
 	}
-	// TODO: Optimize by getting from only relevant adapters
-	// adapters, err := d.nodeRouter.GetAdapters(key)
-	// if err != nil {
-	// 	return 0, false
-	// }
-	// for _, adapter := range adapters {
-	// 	if ttl, found := adapter.GetTTL(key); found {
-	// 		return ttl, true, nil
-	// 	}
-	// }
+	adapters, err := d.nodeRouter.GetAdapters(key)
+	if err != nil {
+		return 0, false, err
+	}
+	for _, adapter := range adapters {
+		if ttl, found := adapter.GetTTL(ctx, key); found {
+			return ttl, true, nil
+		}
+	}
 	return 0, false, nil
 }
 
@@ -150,6 +190,9 @@ func (d *Distributor) Expire(ctx context.Context, key string, expiration time.Du
 	}
 	go func() {
 		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
 			if err := adapter.UpdateExpiration(ctx, key, expiration); err != nil {
 				return
 			}
@@ -169,6 +212,9 @@ func (d *Distributor) Persist(ctx context.Context, key string) error {
 	}
 	go func() {
 		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
 			if err := adapter.RemoveExpiration(ctx, key); err != nil {
 				return
 			}
@@ -184,19 +230,21 @@ func (d *Distributor) Incr(ctx context.Context, key string) (int64, error) {
 		return 0, err
 	}
 
-	// TODO: Optimize by incrementing only on relevant adapters
-	// adapters, err := d.nodeRouter.GetAdapters(key)
-	// if err != nil {
-	// 	return 0, err
-	// }
-	// var result int64
-	// for _, adapter := range adapters {
-	// 	val, err := adapter.Increment(key)
-	// 	if err != nil {
-	// 		return 0, err
-	// 	}
-	// 	result = val
-	// }
+	ctxwoCancel := context.WithoutCancel(ctx)
+	adapters, err := d.nodeRouter.GetAdapters(key)
+	if err != nil {
+		return 0, err
+	}
+	go func() {
+		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
+			if _, err := adapter.Increment(ctxwoCancel, key); err != nil {
+				log.Printf("Failed to replicate increment for key %s: %v", key, err)
+			}
+		}
+	}()
 	return val, nil
 }
 
@@ -206,19 +254,21 @@ func (d *Distributor) Decr(ctx context.Context, key string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	// TODO: Optimize by decrementing only on relevant adapters
-	// adapters, err := d.nodeRouter.GetAdapters(key)
-	// if err != nil {
-	// 	return 0, err
-	// }
-	// var result int64
-	// for _, adapter := range adapters {
-	// 	val, err := adapter.Decrement(key)
-	// 	if err != nil {
-	// 		return 0, err
-	// 	}
-	// 	result = val
-	// }
+	ctxwoCancel := context.WithoutCancel(ctx)
+	adapters, err := d.nodeRouter.GetAdapters(key)
+	if err != nil {
+		return 0, err
+	}
+	go func() {
+		for _, adapter := range adapters {
+			if adapter == localAdapter {
+				continue
+			}
+			if _, err := adapter.Decrement(ctxwoCancel, key); err != nil {
+				log.Printf("Failed to replicate decrement for key %s: %v", key, err)
+			}
+		}
+	}()
 	return val, nil
 }
 
@@ -238,6 +288,9 @@ func (d *Distributor) SetNX(ctx context.Context, key string, value []byte, expir
 	}
 	var setSuccess bool
 	for _, adapter := range adapters {
+		if adapter == localAdapter {
+			continue
+		}
 		success, err := adapter.SetIfNotExists(ctx, key, value, expiration)
 		if err != nil {
 			return false, err
@@ -265,6 +318,9 @@ func (d *Distributor) GetSet(ctx context.Context, key string, value []byte) ([]b
 		return nil, err
 	}
 	for _, adapter := range adapters {
+		if adapter == localAdapter {
+			continue
+		}
 		val, err := adapter.GetAndSet(ctx, key, value)
 		if err != nil {
 			return nil, err
@@ -277,7 +333,21 @@ func (d *Distributor) GetSet(ctx context.Context, key string, value []byte) ([]b
 func (d *Distributor) MGet(ctx context.Context, keys []string) (map[string][]byte, error) {
 	localAdapter := d.localAdapter
 	result := localAdapter.GetMultiple(ctx, keys)
-	// TODO: Optimize by getting from only relevant adapters
+	for _, key := range keys {
+		if _, exists := result[key]; exists {
+			continue
+		}
+		adapters, err := d.nodeRouter.GetAdapters(key)
+		if err != nil {
+			return nil, err
+		}
+		for _, adapter := range adapters {
+			if value, found := adapter.GetItem(ctx, key); found {
+				result[key] = value
+				break
+			}
+		}
+	}
 	return result, nil
 }
 
@@ -294,10 +364,15 @@ func (d *Distributor) MSet(ctx context.Context, kv map[string][]byte, expiration
 		if err != nil {
 			return err
 		}
+		keyCopy := key
+		valueCopy := value
 		go func() {
 			for _, adapter := range adapters {
-				if err := adapter.SetItem(ctxwoCancel, key, value, expiration); err != nil {
-					log.Printf("Failed to replicate set item for key %s: %v", key, err)
+				if adapter == localAdapter {
+					continue
+				}
+				if err := adapter.SetItem(ctxwoCancel, keyCopy, valueCopy, expiration); err != nil {
+					log.Printf("Failed to replicate set item for key %s: %v", keyCopy, err)
 				}
 			}
 		}()
