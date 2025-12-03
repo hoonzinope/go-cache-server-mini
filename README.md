@@ -2,7 +2,7 @@
 [English README](README.en.md)
 
 ## 개요
-`go-cache-server-mini`는 Gin 기반 HTTP API로 키-값을 읽고 쓰는 초경량 인메모리 캐시 서버입니다. 학습·실험·간단한 통합 테스트에서 상태를 빠르게 저장할 수 있도록 설계되었으며, TTL·숫자 연산·벌크 작업 등 Redis에서 자주 쓰는 최소 기능을 제공합니다.
+`go-cache-server-mini`는 Gin 기반 HTTP API로 키-값을 읽고 쓰는 초경량 인메모리 캐시 서버입니다. 학습·실험·간단한 통합 테스트에서 상태를 빠르게 저장할 수 있도록 설계되었으며, TTL·숫자 연산·벌크 작업 등 Redis에서 자주 쓰는 최소 기능을 제공합니다. 필요 시 gRPC를 통해 노드 간에 동일 연산을 전파하는 분산 모드를 켤 수 있습니다.
 
 ## 변경/추가 사항
 - **샤딩된 캐시 코어**: FNV 해시로 256개 샤드에 키를 분산하고 샤드별 RWMutex를 잡아 동시성 경쟁을 줄였습니다. `MGet/MSet`은 중복 샤드를 한 번만 잠가 배타 구간을 최소화합니다.
@@ -16,6 +16,42 @@
 - **숫자 연산**: `incr`, `decr`가 문자열로 저장된 정수 값을 원자적으로 갱신합니다.
 - **동시성 안전**: RWMutex로 보호된 맵과 중앙 집중 에러(`internal/errors.go`)를 사용해 단순하면서도 예측 가능한 동작을 유지합니다.
 - **Graceful shutdown**: `cmd/main.go`가 SIGINT/SIGTERM을 받아 API 서버와 만료 워커를 순차 종료합니다.
+- **분산/복제 지원(옵션)**: `distributed.enabled`를 켜면 gRPC 서버/클라이언트가 떠서, Consistent Hash 기반 라우터(`NodeRouter`)가 동일 키 해시 슬롯의 다른 노드들에 쓰기·만료·삭제·증감·벌크 연산을 비동기로 복제합니다. 로컬 샤드의 값을 덮지 않도록 로컬 어댑터는 복제 대상에서 제외합니다.
+
+## 아키텍처 개요
+```mermaid
+graph TD
+    subgraph Client
+        U[HTTP Client]
+    end
+    subgraph API
+        G[Gin Router]
+        H[Handlers<br/>set/get/del/...]
+    end
+    subgraph Dist
+        D[Distributor<br/>Local/Cluster]
+        NR[NodeRouter<br/>Consistent Hash]
+    end
+    subgraph LocalNode
+        LA[LocalAdapter]
+        C[Cache Core<br/>sharded map + TTL worker]
+        P[Persistent Logger<br/>AOF + Snapshot]
+        T[TTL Worker]
+    end
+    subgraph RemoteNode
+        RA[RemoteAdapter]
+        GC[gRPC Client]
+        GS[gRPC Server]
+        RLA[LocalAdapter]
+        RC[Remote Cache Core]
+    end
+
+    U -->|HTTP| G --> H --> D --> NR
+    NR --> LA --> C --> P
+    C <-->|expire scan| T
+    NR -->|hash slot mapping| RA
+    RA --> GC -->|gRPC| GS --> RLA --> RC
+```
 
 ## API 한눈에 보기
 | Method | Path | Body / Query | 설명 |
@@ -92,18 +128,32 @@ config.yml                   # 기본 TTL, HTTP 바인딩 등 런타임 설정
 
 ```yaml
 persistent:
-  type: memory        # 추후 외부 스토리지 추가 예정
+  type: file          # 옵션: memory, file
 ttl:
   default: 86400      # TTL 미지정 시 1일
   max: 604800         # TTL 상한 7일
 http:
   enabled: true
   address: ":8080"
+distributed:
+  enabled: false
+  grpc_port: 50051
+  swarm_service_name: "go-cache-service"  # DNS로 다른 노드 IP를 조회
+  update_interval: 10                     # 초 단위, 리모트 노드 목록 재수집 주기
+  replication_factor: 3                   # Consistent Hash 링에 넣을 가상 노드 수
+  backup_nodes: 0                         # 주 노드 외 추가 백업 노드 수
 ```
 
 ## Graceful shutdown & 오류 전파
 - `cmd/main.go`가 SIGINT/SIGTERM을 수신하면 컨텍스트를 취소하고 API 서버 · TTL 워커를 기다린 후 종료합니다.
 - `api.StartAPIServer`가 포트를 잡지 못하면 즉시 에러를 반환하고, 메인은 에러 로그를 남긴 뒤 종료 코드 1로 프로세스를 종료합니다.
+- 분산 모드에서는 gRPC 서버도 함께 종료되며, 링 정보는 DNS(`swarm_service_name`) 재조회로 주기적으로 갱신됩니다.
+
+## 분산 모드 동작 요약
+- `internal/distributed/router/node_router.go`: Consistent Hash 링 구성, 복제본/백업 노드 개수에 맞춰 키별 대상 어댑터 선정, DNS 재조회로 동적으로 링 갱신.
+- `internal/distributed/adapter/local_adapter.go` / `remote_adapter.go`: 로컬 코어와 gRPC 클라이언트를 동일 인터페이스로 감싸 동일 코드로 호출.
+- `internal/distributed/router/distributor.go`: 모든 쓰기·만료·삭제·증감·벌크 연산을 로컬에 먼저 적용 후 다른 노드에 비동기 복제(컨텍스트 취소 무시), 조회는 로컬 미스 시 대상 어댑터로 폴백.
+- `cmd/main.go`: `distributed.enabled=true`일 때만 gRPC 서버를 열고, API는 분산 디스트리뷰터를 사용하도록 배선.
 
 ## 개발 및 테스트
 - 단위 테스트: `go test ./...`
