@@ -2,7 +2,7 @@
 [한국어 README](README.md)
 
 ## Overview
-`go-cache-server-mini` is a lightweight in-memory cache server that exposes Redis-like primitives through a small Gin-based HTTP API. It is purpose-built for workshops, demos, and integration tests that need a disposable stateful endpoint without external dependencies.
+`go-cache-server-mini` is a lightweight in-memory cache server that exposes Redis-like primitives through a small Gin-based HTTP API. It is purpose-built for workshops, demos, and integration tests that need a disposable stateful endpoint without external dependencies, and can optionally replicate the same operations across nodes via gRPC in distributed mode.
 
 ## What's New
 - **Sharded cache core**: Keys are distributed across 256 shards using FNV hashing, and each shard has its own RWMutex. `MGet/MSet` lock each shard only once to keep critical sections small.
@@ -16,6 +16,42 @@
 - **Atomic counters**: `incr`/`decr` mutate integer payloads atomically while maintaining TTL/persistence flags.
 - **Concurrency-safe core**: A RWMutex-protected map keeps the implementation simple and predictable, and reusable error values live in `internal/errors.go`.
 - **Graceful shutdown**: `cmd/main.go` ties signal handling, the API server, and the expiration worker together to guarantee clean exits.
+- **Distributed/replication (optional)**: With `distributed.enabled` set, a gRPC server/client pair plus a consistent-hash `NodeRouter` replicate writes/expire/delete/incr/decr/bulk ops asynchronously to other nodes responsible for the same hash slots, while avoiding overwrites on the local adapter.
+
+## Architecture at a Glance
+```mermaid
+graph TD
+    subgraph Client
+        U[HTTP Client]
+    end
+    subgraph API
+        G[Gin Router]
+        H[Handlers<br/>set/get/del/...]
+    end
+    subgraph Dist
+        D[Distributor<br/>Local/Cluster]
+        NR[NodeRouter<br/>Consistent Hash]
+    end
+    subgraph LocalNode
+        LA[LocalAdapter]
+        C[Cache Core<br/>sharded map + TTL worker]
+        P[Persistent Logger<br/>AOF + Snapshot]
+        T[TTL Worker]
+    end
+    subgraph RemoteNode
+        RA[RemoteAdapter]
+        GC[gRPC Client]
+        GS[gRPC Server]
+        RLA[LocalAdapter]
+        RC[Remote Cache Core]
+    end
+
+    U -->|HTTP| G --> H --> D --> NR
+    NR --> LA --> C --> P
+    C <-->|expire scan| T
+    NR -->|hash slot mapping| RA
+    RA --> GC -->|gRPC| GS --> RLA --> RC
+```
 
 ## API at a Glance
 | Method | Path | Body / Query | Description |
@@ -92,18 +128,32 @@ Edit `config.yml` and optionally embed environment variables such as `${PORT}`�
 
 ```yaml
 persistent:
-  type: memory
+  type: file          # options: memory, file
 ttl:
   default: 86400   # fallback TTL when omitted
   max: 604800      # clamp overly large TTLs
 http:
   enabled: true
   address: ":8080"
+distributed:
+  enabled: false
+  grpc_port: 50051
+  swarm_service_name: "go-cache-service"  # DNS lookup to discover peers
+  update_interval: 10                     # seconds between ring refresh
+  replication_factor: 3                   # virtual nodes per physical node
+  backup_nodes: 0                         # extra replicas beyond primary
 ```
 
 ## Graceful shutdown & error propagation
 - `cmd/main.go` listens for `SIGINT`/`SIGTERM`, cancels the shared context, and waits for the API goroutine and expiration worker before exiting.
 - `api.StartAPIServer` surfaces bind failures (e.g., port already in use) so the process logs the error and exits with status code `1` instead of leaving background goroutines running.
+- In distributed mode the gRPC server shuts down alongside the API, and the ring membership is refreshed periodically via DNS (`swarm_service_name`).
+
+## Distributed mode summary
+- `internal/distributed/router/node_router.go`: builds the consistent-hash ring, selects primary/backup adapters per key, and refreshes ring membership by re-resolving DNS.
+- `internal/distributed/adapter/local_adapter.go` / `remote_adapter.go`: wrap the local core and gRPC client behind the same interface.
+- `internal/distributed/router/distributor.go`: applies writes/expiry/delete/counters/bulk ops locally then replicates asynchronously to non-local adapters (using `context.WithoutCancel`); reads fall back to mapped adapters when local cache misses.
+- `cmd/main.go`: only opens the gRPC server and wires the API to the clustered distributor when `distributed.enabled=true`.
 
 ## Development & Testing
 - Run the full suite: `go test ./...`
