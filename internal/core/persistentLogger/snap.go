@@ -2,8 +2,10 @@ package persistentLogger
 
 import (
 	"go-cache-server-mini/internal/core/data"
+	"go-cache-server-mini/internal/metric"
 	"go-cache-server-mini/internal/util"
 	"log"
+	"time"
 )
 
 type Snap struct {
@@ -63,38 +65,67 @@ func (s *Snap) Save() error {
 	defer s.close()
 	// Placeholder for saving Snap data from cache
 	for data := range s.SnapDataChannel {
-		// Process the snapshot data
-		if len(data) == 0 {
-			// If no data, just truncate the snap file
-			if err := s.SnapFile.Truncate(); err != nil {
-				log.Printf("Error truncating snap file: %v", err)
+		start := time.Now()
+		status := "success"
+		success := true
+		func() {
+			defer func() {
+				metric.SnapshotWriteDuration.WithLabelValues(status).Observe(time.Since(start).Seconds())
+				metric.SnapshotWriteCount.WithLabelValues(status).Inc()
+				if status != "success" {
+					metric.SnapshotWriteErrors.WithLabelValues(status).Inc()
+				}
+			}()
+
+			// Process the snapshot data
+			if len(data) == 0 {
+				// If no data, just truncate the snap file
+				if err := s.SnapFile.Truncate(); err != nil {
+					status = "error"
+					success = false
+					log.Printf("Error truncating snap file: %v", err)
+				}
+				return
 			}
-		} else {
+
 			// Write data to temp snap file
 			if err := s.SnapTempFile.Truncate(); err != nil {
+				status = "error"
+				success = false
 				log.Printf("Error truncating temp snap file: %v", err)
-				s.SnapDoneChannel <- false
-				continue
+				return
 			}
 			for key, item := range data {
 				cmd, err := s.parser.ConvertCMDToString("SET", key, item)
 				if err != nil {
+					status = "error"
+					success = false
 					log.Printf("Error converting CMD to string for snap: %v", err)
 					continue
 				}
 				if err = s.SnapTempFile.Write(cmd); err != nil {
+					status = "error"
+					success = false
 					log.Printf("Error writing to temp snap file: %v", err)
-					s.SnapDoneChannel <- false
-					continue
+					return
 				}
 			}
-			if err := util.SwitchFileUtil(s.SnapTempFile, s.SnapFile); err != nil { // Switch temp file to main file & delete temp file
-				log.Printf("Error switching snap files: %v", err)
-				s.SnapDoneChannel <- false
-				continue
+			if status == "error" {
+				success = false
+				return
 			}
+			if err := util.SwitchFileUtil(s.SnapTempFile, s.SnapFile); err != nil { // Switch temp file to main file & delete temp file
+				status = "error"
+				success = false
+				log.Printf("Error switching snap files: %v", err)
+				return
+			}
+		}()
+		if success {
+			s.SnapDoneChannel <- true
+		} else {
+			s.SnapDoneChannel <- false
 		}
-		s.SnapDoneChannel <- true
 	}
 	return nil
 }

@@ -9,6 +9,29 @@
 - **Sampled expiration worker**: Every second a background worker samples up to 20 keys from random shards to evict expired entries, keeping the cleanup cost bounded even with many keys.
 - **Optional file persistence**: With `persistent.type: file`, the server keeps an append-only log (`cache.aof`) and snapshots (`cache.snap`) under `persistent_data`. Startup loads the snapshot first and replays the AOF; shutdown closes channels so pending flushes complete.
 - **Snapshot/AOF strategy**: Snapshots fire every 60s, pausing AOF writes while a temp file swap happens. The AOF batches writes (every 100ms or 1000 commands) before hitting disk.
+- **Built-in metrics**: Prometheus counters/histograms cover HTTP latency/errors, cache hits/misses/key count/expirations, and persistence activity (AOF write count/duration/errors, snapshot write count/duration/errors). Exported at `/metrics`.
+
+## Metrics
+The server exposes Prometheus-formatted metrics at the `/metrics` endpoint. Key metrics include:
+
+### HTTP Metrics
+- `http_request_total`: Total requests by method, path, and status code.
+- `http_request_duration_seconds`: Request latency distribution (Histogram).
+- `http_request_errors_total`: Total count of 4xx/5xx errors.
+
+### Cache Metrics
+- `cache_hits_total`: Number of successful cache lookups (excluding expired keys).
+- `cache_misses_total`: Number of failed lookups (missing or expired keys).
+- `cache_key_count`: Current number of keys in the cache (Gauge).
+- `cache_expirations_total`: Total number of keys evicted due to expiration.
+
+### Persistence Metrics
+- `persistence_aof_write_total`: Total AOF write operations.
+- `persistence_aof_write_errors_total`: Total AOF write failures.
+- `persistence_aof_write_duration_seconds`: Duration of AOF writes (Histogram).
+- `persistence_snapshot_write_total`: Total snapshot creation operations.
+- `persistence_snapshot_write_errors_total`: Total snapshot creation failures.
+- `persistence_snapshot_write_duration_seconds`: Duration of snapshot creation (Histogram).
 
 ## Features
 - **Broader endpoint coverage**: Beyond basic `set/get/del`, the server ships with `setnx`, `getset`, `mget`, and `mset` so you can model simple workflows and bulk operations.

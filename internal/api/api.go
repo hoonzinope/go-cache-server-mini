@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"go-cache-server-mini/internal/api/handler"
 	"go-cache-server-mini/internal/distributed/router"
+	"go-cache-server-mini/internal/metric"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type APIServer struct {
@@ -63,8 +65,12 @@ func (server *APIServer) router() *gin.Engine {
 	// Middleware
 	r.Use(gin.Recovery())
 	r.Use(gin.Logger())
+	r.Use(server.metric_middleware)
+
 	// Ping route for health check
 	server.ping(r)
+	// Metrics route
+	server.metric(r)
 	// core API routes
 	// read
 	server.get(r)
@@ -88,9 +94,37 @@ func (server *APIServer) router() *gin.Engine {
 	return r
 }
 
+func (server *APIServer) metric_middleware(c *gin.Context) {
+	// Implementation for metric middleware goes here
+	startTime := time.Now()
+	c.Next()
+	duration := time.Since(startTime)
+
+	method := c.Request.Method
+	path := c.FullPath()
+	status := fmt.Sprintf("%d", c.Writer.Status())
+
+	// Update request count
+	metric.RequestCount.WithLabelValues(method, path, status).Inc()
+	// Update request duration
+	metric.RequestDuration.WithLabelValues(method, path, status).Observe(duration.Seconds())
+	// Update request errors if status is 4xx or 5xx
+	if c.Writer.Status() >= 400 {
+		metric.RequestErrors.WithLabelValues(method, path, status).Inc()
+	}
+}
+
 func (server *APIServer) ping(r *gin.Engine) {
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
+	})
+}
+
+func (server *APIServer) metric(r *gin.Engine) {
+	r.GET("/metrics", func(c *gin.Context) {
+		// Implementation for serving metrics goes here
+		prometheusHandler := gin.WrapH(promhttp.Handler())
+		prometheusHandler(c)
 	})
 }
 
