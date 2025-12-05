@@ -2,6 +2,7 @@ package persistentLogger
 
 import (
 	"go-cache-server-mini/internal/core/data"
+	"go-cache-server-mini/internal/metric"
 	"go-cache-server-mini/internal/util"
 	"time"
 )
@@ -133,6 +134,16 @@ func (a *AOF) Wait() {
 }
 
 func (a *AOF) flush() error {
+	start := time.Now()
+	status := "success"
+	defer func() {
+		metric.AofWriteDuration.WithLabelValues(status).Observe(time.Since(start).Seconds())
+		metric.AofWriteCount.WithLabelValues(status).Inc()
+		if status != "success" {
+			metric.AofWriteErrors.WithLabelValues(status).Inc()
+		}
+	}()
+
 	var err error
 	var targetFile *util.FileUtil
 	if a.tempFileFlag {
@@ -143,6 +154,7 @@ func (a *AOF) flush() error {
 	for _, cmd := range a.batchCmdBuffer {
 		err = targetFile.Write(cmd) // Write to target file
 		if err != nil {
+			status = "error"
 			return err
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"go-cache-server-mini/internal/config"
 	"go-cache-server-mini/internal/core/data"
 	"go-cache-server-mini/internal/core/persistentLogger"
+	"go-cache-server-mini/internal/metric"
 	"go-cache-server-mini/internal/util"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 const shardCount = 256          // number of shards for sharded locks
 const sampleDeleteKeyCount = 20 // randomly check 20 keys for expiration each second
+const cacheLabelDefault = "default"
 
 type cacheShard struct {
 	lock  sync.RWMutex
@@ -72,12 +74,15 @@ func (c *Cache) Load() error {
 	var loadErr error
 	c.KVMap, loadErr = c.persistentLogger.Load(c.KVMap)
 	// Load data into shardedMap
+	keyCount := 0
 	for key, item := range c.KVMap {
 		index := c.getShardedIndex(key)
 		c.shardedMap[index].lock.Lock()
 		c.shardedMap[index].kvmap[key] = item
 		c.shardedMap[index].lock.Unlock()
+		keyCount++
 	}
+	metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Set(float64(keyCount))
 	return loadErr
 }
 
@@ -114,6 +119,15 @@ func (c *Cache) Set(key string, value []byte, expiration time.Duration) error {
 	defer c.shardedMap[index].lock.Unlock()
 
 	expiration, persistent := util.SetExpiration(c.defaultTTL, c.maxTTL, int64(expiration.Seconds()))
+	if item, exists := c.shardedMap[index].kvmap[key]; exists && isExpired(item) {
+		delete(c.shardedMap[index].kvmap, key)
+		c.delItemLog(key) // Write to AOF
+		metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Dec()
+		metric.CacheExpirations.WithLabelValues(cacheLabelDefault).Inc()
+	}
+	if _, exists := c.shardedMap[index].kvmap[key]; !exists {
+		metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Inc()
+	}
 	c.shardedMap[index].kvmap[key] = data.CacheItem{
 		Value:      value,
 		Expiration: time.Now().Add(expiration),
@@ -126,50 +140,94 @@ func (c *Cache) Set(key string, value []byte, expiration time.Duration) error {
 
 func (c *Cache) Get(key string) ([]byte, bool) {
 	index := c.getShardedIndex(key)
-	c.shardedMap[index].lock.RLock()
-	defer c.shardedMap[index].lock.RUnlock()
-
-	item, exists := c.shardedMap[index].kvmap[key]
-	if exists {
-		if isExpired(item) {
-			return nil, false
-		}
-		return item.Value, true
+	shard := c.shardedMap[index]
+	shard.lock.RLock()
+	item, exists := shard.kvmap[key]
+	shard.lock.RUnlock()
+	if !exists {
+		metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
+		return nil, false
 	}
-	return nil, false
+	if isExpired(item) {
+		c.purgeExpired(key, index)
+		metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
+		return nil, false
+	}
+	metric.CacheHits.WithLabelValues(cacheLabelDefault).Inc()
+	return item.Value, true
+}
+
+func (c *Cache) purgeExpired(key string, index int) {
+	shard := c.shardedMap[index]
+	shard.lock.Lock()
+	defer shard.lock.Unlock()
+	current, exists := shard.kvmap[key]
+	if !exists || !isExpired(current) {
+		return
+	}
+	delete(shard.kvmap, key)
+	c.delItemLog(key) // Write to AOF
+	metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Dec()
+	metric.CacheExpirations.WithLabelValues(cacheLabelDefault).Inc()
 }
 
 func (c *Cache) Del(key string) error {
 	index := c.getShardedIndex(key)
 	c.shardedMap[index].lock.Lock()
 	defer c.shardedMap[index].lock.Unlock()
-	delete(c.shardedMap[index].kvmap, key)
-	// Write to AOF
-	c.delItemLog(key)
+	if _, exists := c.shardedMap[index].kvmap[key]; exists {
+		delete(c.shardedMap[index].kvmap, key)
+		c.delItemLog(key) // Write to AOF
+		metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Dec()
+	}
 	return nil
 }
 
 func (c *Cache) Exists(key string) bool {
 	index := c.getShardedIndex(key)
-	c.shardedMap[index].lock.RLock()
-	defer c.shardedMap[index].lock.RUnlock()
-	item, exists := c.shardedMap[index].kvmap[key]
-	if exists {
-		return !isExpired(item)
+	shard := c.shardedMap[index]
+	shard.lock.RLock()
+	item, exists := shard.kvmap[key]
+	shard.lock.RUnlock()
+	if !exists {
+		metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
+		return false
+	} else if isExpired(item) {
+		c.purgeExpired(key, index)
+		metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
+		return false
+	} else {
+		metric.CacheHits.WithLabelValues(cacheLabelDefault).Inc()
+		return true
 	}
-	return false
 }
 
 func (c *Cache) Keys() []string {
 	var keys []string
 	for i := 0; i < shardCount; i++ {
-		c.shardedMap[i].lock.RLock()
-		for key, item := range c.shardedMap[i].kvmap {
-			if !isExpired(item) {
-				keys = append(keys, key)
+		var expiredKeys []string
+		shard := c.shardedMap[i]
+		shard.lock.RLock()
+		for key, item := range shard.kvmap {
+			if isExpired(item) {
+				expiredKeys = append(expiredKeys, key)
+				continue
 			}
+			keys = append(keys, key)
 		}
-		c.shardedMap[i].lock.RUnlock()
+		shard.lock.RUnlock()
+		if len(expiredKeys) > 0 {
+			shard.lock.Lock()
+			for _, key := range expiredKeys {
+				if item, exists := shard.kvmap[key]; exists && isExpired(item) {
+					delete(shard.kvmap, key)
+					c.delItemLog(key) // Write to AOF
+					metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Dec()
+					metric.CacheExpirations.WithLabelValues(cacheLabelDefault).Inc()
+				}
+			}
+			shard.lock.Unlock()
+		}
 	}
 
 	return keys
@@ -179,23 +237,30 @@ func (c *Cache) Flush() error {
 	for i := 0; i < shardCount; i++ {
 		c.shardedMap[i].lock.Lock()
 		for key := range c.shardedMap[i].kvmap {
-			// Write to AOF
-			c.delItemLog(key)
+			c.delItemLog(key) // Write to AOF
 		}
 		c.shardedMap[i].kvmap = make(map[string]data.CacheItem)
 		c.shardedMap[i].lock.Unlock()
 	}
+	metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Set(0)
 	return nil
 }
 
 func (c *Cache) TTL(key string) (time.Duration, bool) {
 	index := c.getShardedIndex(key)
-	c.shardedMap[index].lock.RLock()
-	defer c.shardedMap[index].lock.RUnlock()
-	item, exists := c.shardedMap[index].kvmap[key]
+	shard := c.shardedMap[index]
+	shard.lock.RLock()
+	item, exists := shard.kvmap[key]
+	shard.lock.RUnlock()
 	if !exists {
+		metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
+		return 0, false
+	} else if isExpired(item) {
+		c.purgeExpired(key, index)
+		metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
 		return 0, false
 	}
+	metric.CacheHits.WithLabelValues(cacheLabelDefault).Inc()
 	if item.Persistent {
 		return -1, true
 	}
@@ -211,19 +276,27 @@ func (c *Cache) Expire(key string, expiration time.Duration) error {
 	c.shardedMap[index].lock.Lock()
 	defer c.shardedMap[index].lock.Unlock()
 	if expiration <= 0 {
-		delete(c.shardedMap[index].kvmap, key)
-		// Write to AOF
-		c.delItemLog(key)
+		if _, exists := c.shardedMap[index].kvmap[key]; exists {
+			delete(c.shardedMap[index].kvmap, key)
+			c.delItemLog(key) // Write to AOF
+			metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Dec()
+		}
 		return nil
 	}
 
 	expiration, persistent := util.SetExpiration(c.defaultTTL, c.maxTTL, int64(expiration.Seconds()))
 	item, exists := c.shardedMap[index].kvmap[key]
-	if !exists {
+	if !exists || isExpired(item) {
+		if exists && isExpired(item) {
+			delete(c.shardedMap[index].kvmap, key)
+			c.delItemLog(key) // Write to AOF
+			metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Dec()
+			metric.CacheExpirations.WithLabelValues(cacheLabelDefault).Inc()
+		}
+		metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
 		return internal.ErrNotFound
-	}
-	if isExpired(item) {
-		return internal.ErrNotFound
+	} else {
+		metric.CacheHits.WithLabelValues(cacheLabelDefault).Inc()
 	}
 	c.shardedMap[index].kvmap[key] = data.CacheItem{
 		Value:      item.Value,
@@ -241,7 +314,16 @@ func (c *Cache) Persist(key string) error {
 	defer c.shardedMap[index].lock.Unlock()
 	item, exists := c.shardedMap[index].kvmap[key]
 	if !exists || isExpired(item) {
+		if exists && isExpired(item) {
+			delete(c.shardedMap[index].kvmap, key)
+			c.delItemLog(key) // Write to AOF
+			metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Dec()
+			metric.CacheExpirations.WithLabelValues(cacheLabelDefault).Inc()
+		}
+		metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
 		return internal.ErrNotFound
+	} else {
+		metric.CacheHits.WithLabelValues(cacheLabelDefault).Inc()
 	}
 	c.shardedMap[index].kvmap[key] = data.CacheItem{
 		Value:      item.Value,
@@ -259,7 +341,16 @@ func (c *Cache) Incr(key string) (int64, error) {
 	defer c.shardedMap[index].lock.Unlock()
 	item, exists := c.shardedMap[index].kvmap[key]
 	if !exists || isExpired(item) {
+		if exists && isExpired(item) {
+			delete(c.shardedMap[index].kvmap, key)
+			c.delItemLog(key) // Write to AOF
+			metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Dec()
+			metric.CacheExpirations.WithLabelValues(cacheLabelDefault).Inc()
+		}
+		metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
 		return 0, internal.ErrNotFound
+	} else {
+		metric.CacheHits.WithLabelValues(cacheLabelDefault).Inc()
 	}
 	value, err := util.BytesToInt64(item.Value)
 	if err != nil {
@@ -282,7 +373,16 @@ func (c *Cache) Decr(key string) (int64, error) {
 	defer c.shardedMap[index].lock.Unlock()
 	item, exists := c.shardedMap[index].kvmap[key]
 	if !exists || isExpired(item) {
+		if exists && isExpired(item) {
+			delete(c.shardedMap[index].kvmap, key)
+			c.delItemLog(key) // Write to AOF
+			metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Dec()
+			metric.CacheExpirations.WithLabelValues(cacheLabelDefault).Inc()
+		}
+		metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
 		return 0, internal.ErrNotFound
+	} else {
+		metric.CacheHits.WithLabelValues(cacheLabelDefault).Inc()
 	}
 	value, err := util.BytesToInt64(item.Value)
 	if err != nil {
@@ -304,10 +404,20 @@ func (c *Cache) SetNX(key string, value []byte, expiration time.Duration) (bool,
 	c.shardedMap[index].lock.Lock()
 	defer c.shardedMap[index].lock.Unlock()
 	item, exists := c.shardedMap[index].kvmap[key]
-	if exists && !isExpired(item) {
-		return false, nil
+	if exists {
+		if isExpired(item) {
+			delete(c.shardedMap[index].kvmap, key)
+			c.delItemLog(key) // Write to AOF
+			metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Dec()
+			metric.CacheExpirations.WithLabelValues(cacheLabelDefault).Inc()
+		} else {
+			return false, nil
+		}
 	}
 	expiration, persistent := util.SetExpiration(c.defaultTTL, c.maxTTL, int64(expiration.Seconds()))
+	if _, present := c.shardedMap[index].kvmap[key]; !present {
+		metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Inc()
+	}
 	c.shardedMap[index].kvmap[key] = data.CacheItem{
 		Value:      value,
 		Expiration: time.Now().Add(expiration),
@@ -326,10 +436,24 @@ func (c *Cache) GetSet(key string, value []byte) ([]byte, error) {
 	var oldValue []byte
 	var expiration time.Time = time.Now().Add(time.Duration(c.defaultTTL) * time.Second)
 	var persistent bool = false
-	if exists && !isExpired(item) {
-		oldValue = item.Value
-		persistent = item.Persistent
-		expiration = item.Expiration
+	if exists {
+		if isExpired(item) {
+			delete(c.shardedMap[index].kvmap, key)
+			c.delItemLog(key) // Write to AOF
+			metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Dec()
+			metric.CacheExpirations.WithLabelValues(cacheLabelDefault).Inc()
+			metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
+		} else {
+			oldValue = item.Value
+			persistent = item.Persistent
+			expiration = item.Expiration
+			metric.CacheHits.WithLabelValues(cacheLabelDefault).Inc()
+		}
+	} else {
+		metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
+	}
+	if _, present := c.shardedMap[index].kvmap[key]; !present {
+		metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Inc()
 	}
 	c.shardedMap[index].kvmap[key] = data.CacheItem{
 		Value:      value,
@@ -342,20 +466,24 @@ func (c *Cache) GetSet(key string, value []byte) ([]byte, error) {
 }
 
 func (c *Cache) MGet(keys []string) map[string][]byte {
-	indexList := util.GetIndexListNoDup(keys, c.getShardedIndex)
-	for _, index := range indexList {
-		c.shardedMap[index].lock.RLock()
-	}
 	result := make(map[string][]byte)
 	for _, key := range keys {
 		index := c.getShardedIndex(key)
-		item, exists := c.shardedMap[index].kvmap[key]
-		if exists && !isExpired(item) {
+		shard := c.shardedMap[index]
+		shard.lock.RLock()
+		item, exists := shard.kvmap[key]
+		shard.lock.RUnlock()
+		if !exists {
+			metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
+			continue
+		}
+		if isExpired(item) {
+			c.purgeExpired(key, index)
+			metric.CacheMisses.WithLabelValues(cacheLabelDefault).Inc()
+		} else {
+			metric.CacheHits.WithLabelValues(cacheLabelDefault).Inc()
 			result[key] = item.Value
 		}
-	}
-	for j := len(indexList) - 1; j >= 0; j-- {
-		c.shardedMap[indexList[j]].lock.RUnlock()
 	}
 	return result
 }
@@ -373,6 +501,15 @@ func (c *Cache) MSet(kv map[string][]byte, expiration time.Duration) error {
 	expirationTime := time.Now().Add(expiration)
 	for key, value := range kv {
 		index := c.getShardedIndex(key)
+		if item, exists := c.shardedMap[index].kvmap[key]; exists && isExpired(item) {
+			delete(c.shardedMap[index].kvmap, key)
+			c.delItemLog(key) // Write to AOF
+			metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Dec()
+			metric.CacheExpirations.WithLabelValues(cacheLabelDefault).Inc()
+		}
+		if _, exists := c.shardedMap[index].kvmap[key]; !exists {
+			metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Inc()
+		}
 		c.shardedMap[index].kvmap[key] = data.CacheItem{
 			Value:      value,
 			Expiration: expirationTime,
@@ -427,6 +564,8 @@ func (c *Cache) expireSampling() {
 			if isExpired(item) {
 				delete(c.shardedMap[i].kvmap, key)
 				c.delItemLog(key)
+				metric.CacheKeyCount.WithLabelValues(cacheLabelDefault).Dec()
+				metric.CacheExpirations.WithLabelValues(cacheLabelDefault).Inc()
 			}
 			checkCount++
 			if checkCount >= sampleDeleteKeyCount {

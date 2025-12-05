@@ -9,6 +9,29 @@
 - **만료 워커 샘플링**: 1초마다 무작위 샤드에서 최대 20개 키만 검사·삭제하는 샘플링 방식을 사용해 큰 키 공간에서도 워커 부하를 제한합니다.
 - **파일 영속화 옵션**: `persistent.type: file`이면 `persistent_data` 이하에 AOF(`cache.aof`)와 스냅샷(`cache.snap`)을 유지합니다. 시작 시 스냅샷을 먼저 불러오고 AOF로 리플레이하며, 종료 시 채널을 닫아 질서 있게 flush 합니다.
 - **스냅샷/로그 처리 방식**: 스냅샷은 60초마다 트리거되어 AOF를 `PAUSE`/`RESUME`하며 temp 파일을 교체합니다. AOF는 100ms 배치 또는 1000건 버퍼 기준으로 디스크에 기록합니다.
+- **프로메테우스 메트릭**: `/metrics` 엔드포인트로 HTTP 지표(지연/오류), 캐시 지표(히트/미스/키 수/만료 건수), 영속화 지표(AOF 쓰기 건수/지연/에러, 스냅샷 쓰기 건수/지연/에러)를 노출합니다.
+
+## 메트릭 (Metrics)
+서버는 Prometheus 포맷의 메트릭을 `/metrics` 엔드포인트에서 제공합니다. 주요 지표는 다음과 같습니다.
+
+### HTTP 지표
+- `http_request_total`: 메서드, 경로, 상태 코드별 요청 수
+- `http_request_duration_seconds`: 요청 처리 시간 분포 (Histogram)
+- `http_request_errors_total`: 4xx/5xx 에러 발생 수
+
+### 캐시 지표
+- `cache_hits_total`: 캐시 적중 횟수 (만료된 키 제외)
+- `cache_misses_total`: 캐시 미스 횟수 (없는 키 + 만료된 키)
+- `cache_key_count`: 현재 저장된 키의 총 개수 (Gauge)
+- `cache_expirations_total`: 만료되어 삭제된 키의 총 개수
+
+### 영속화 지표 (Persistence)
+- `persistence_aof_write_total`: AOF 파일 쓰기 횟수
+- `persistence_aof_write_errors_total`: AOF 쓰기 실패 횟수
+- `persistence_aof_write_duration_seconds`: AOF 쓰기 소요 시간 (Histogram)
+- `persistence_snapshot_write_total`: 스냅샷 생성 횟수
+- `persistence_snapshot_write_errors_total`: 스냅샷 생성 실패 횟수
+- `persistence_snapshot_write_duration_seconds`: 스냅샷 생성 소요 시간 (Histogram)
 
 ## 주요 기능
 - **확장된 엔드포인트**: 단건(`set`, `get`, `del`)뿐 아니라 `setnx`, `getset`, `mget`, `mset`과 같은 멱등·벌크 연산까지 제공해 테스트 시나리오를 유연하게 구성할 수 있습니다.

@@ -8,6 +8,9 @@ import (
 
 	"go-cache-server-mini/internal"
 	"go-cache-server-mini/internal/config"
+	"go-cache-server-mini/internal/metric"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 func newTestCache(t *testing.T) *Cache {
@@ -233,5 +236,50 @@ func TestCacheGetSetRespectsPersistence(t *testing.T) {
 	}
 	if ttl != -1 {
 		t.Fatalf("persistent key TTL should be -1, got %v", ttl)
+	}
+}
+
+func TestCacheKeyCountMetrics(t *testing.T) {
+	metric.CacheKeyCount.Reset()
+	cache := newTestCache(t)
+
+	if got := testutil.ToFloat64(metric.CacheKeyCount.WithLabelValues(cacheLabelDefault)); got != 0 {
+		t.Fatalf("initial cache key count should be 0, got %v", got)
+	}
+
+	if err := cache.Set("m1", []byte("v1"), 0); err != nil {
+		t.Fatalf("Set returned error: %v", err)
+	}
+	if got := testutil.ToFloat64(metric.CacheKeyCount.WithLabelValues(cacheLabelDefault)); got != 1 {
+		t.Fatalf("cache key count after first set should be 1, got %v", got)
+	}
+
+	// Overwrite existing key should not change count.
+	if err := cache.Set("m1", []byte("v2"), 0); err != nil {
+		t.Fatalf("Set overwrite returned error: %v", err)
+	}
+	if got := testutil.ToFloat64(metric.CacheKeyCount.WithLabelValues(cacheLabelDefault)); got != 1 {
+		t.Fatalf("cache key count after overwrite should stay 1, got %v", got)
+	}
+
+	if err := cache.Set("m2", []byte("v3"), 0); err != nil {
+		t.Fatalf("Set returned error: %v", err)
+	}
+	if got := testutil.ToFloat64(metric.CacheKeyCount.WithLabelValues(cacheLabelDefault)); got != 2 {
+		t.Fatalf("cache key count after second key should be 2, got %v", got)
+	}
+
+	if err := cache.Del("m2"); err != nil {
+		t.Fatalf("Del returned error: %v", err)
+	}
+	if got := testutil.ToFloat64(metric.CacheKeyCount.WithLabelValues(cacheLabelDefault)); got != 1 {
+		t.Fatalf("cache key count after delete should be 1, got %v", got)
+	}
+
+	if err := cache.Del("missing"); err != nil {
+		t.Fatalf("Del missing returned error: %v", err)
+	}
+	if got := testutil.ToFloat64(metric.CacheKeyCount.WithLabelValues(cacheLabelDefault)); got != 1 {
+		t.Fatalf("cache key count should stay 1 after deleting missing key, got %v", got)
 	}
 }
