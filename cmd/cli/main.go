@@ -544,15 +544,6 @@ func runInteractive(ctx context.Context, state *cliState, initialArgs []string) 
 	scanner := bufio.NewScanner(os.Stdin)
 	fmt.Println("Interactive mode. Type 'help' for usage, 'exit' to quit.")
 
-	cmd := newRootCmd(state)
-	cmd.SetContext(ctx)
-
-	if len(initialArgs) > 0 {
-		if err := cmd.ParseFlags(initialArgs); err != nil {
-			return err
-		}
-	}
-
 	for {
 		fmt.Print("> ")
 		if !scanner.Scan() {
@@ -576,7 +567,14 @@ func runInteractive(ctx context.Context, state *cliState, initialArgs []string) 
 			continue
 		}
 
-		cmd.SetArgs(args)
+		allArgs := args
+		if len(initialArgs) > 0 {
+			allArgs = append(append([]string{}, initialArgs...), args...)
+		}
+
+		cmd := newRootCmd(state)
+		cmd.SetContext(ctx)
+		cmd.SetArgs(allArgs)
 
 		if err := cmd.Execute(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
