@@ -146,6 +146,24 @@ config.yml                   # Default TTL + HTTP binding
    go build -o bin/cache-server ./cmd
    ```
 
+## CLI Usage
+You can operate the cache via the CLI instead of raw HTTP (server must already be running).
+
+```bash
+# One-shot
+go run ./cmd/cli/main.go --addr http://localhost:8080 set foo '"bar"' --ttl 60
+go run ./cmd/cli/main.go get foo
+
+# Interactive mode (-i or no args)
+go run ./cmd/cli/main.go -i
+> set foo 1
+> incr foo
+> get foo
+> exit
+```
+
+Supported commands: `ping`, `set`, `get`, `del`, `exists`, `keys`, `ttl`, `expire`, `persist`, `flush`, `incr`, `decr`, `setnx`, `getset`, `mget`, `mset` (values are sent as JSON when valid; otherwise sent as strings).
+
 ## Configuration
 Edit `config.yml` and optionally embed environment variables such as `${PORT}`—they are expanded via `os.ExpandEnv` at load time.
 
