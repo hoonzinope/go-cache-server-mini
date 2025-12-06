@@ -146,6 +146,24 @@ config.yml                   # 기본 TTL, HTTP 바인딩 등 런타임 설정
    go build -o bin/cache-server ./cmd
    ```
 
+## CLI 사용법
+HTTP 대신 CLI로도 캐시를 다룰 수 있습니다. 서버가 실행 중이어야 합니다.
+
+```bash
+# 단발 실행
+go run ./cmd/cli/main.go --addr http://localhost:8080 set foo '"bar"' --ttl 60
+go run ./cmd/cli/main.go get foo
+
+# 인터랙티브 모드 (-i 또는 인자 없이)
+go run ./cmd/cli/main.go -i
+> set foo 1
+> incr foo
+> get foo
+> exit
+```
+
+지원 커맨드: `ping`, `set`, `get`, `del`, `exists`, `keys`, `ttl`, `expire`, `persist`, `flush`, `incr`, `decr`, `setnx`, `getset`, `mget`, `mset` (값은 유효한 JSON이면 그대로, 아니면 문자열로 감싸서 전송).
+
 ## 설정
 `config.yml`을 수정하거나 `${PORT}`처럼 환경 변수를 넣어두면 런타임에 `os.ExpandEnv`로 치환됩니다.
 
