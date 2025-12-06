@@ -18,6 +18,7 @@ import (
 
 	"go-cache-server-mini/internal/api/dto"
 
+	"github.com/google/shlex"
 	"github.com/spf13/cobra"
 )
 
@@ -509,7 +510,7 @@ func main() {
 	interactive, filteredArgs := extractInteractive(args)
 
 	if interactive || len(filteredArgs) == 0 {
-		if err := runInteractive(ctx, state); err != nil {
+		if err := runInteractive(ctx, state, filteredArgs); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -539,9 +540,18 @@ func extractInteractive(args []string) (bool, []string) {
 	return interactive, filtered
 }
 
-func runInteractive(ctx context.Context, state *cliState) error {
+func runInteractive(ctx context.Context, state *cliState, initialArgs []string) error {
 	scanner := bufio.NewScanner(os.Stdin)
 	fmt.Println("Interactive mode. Type 'help' for usage, 'exit' to quit.")
+
+	cmd := newRootCmd(state)
+	cmd.SetContext(ctx)
+
+	if len(initialArgs) > 0 {
+		if err := cmd.ParseFlags(initialArgs); err != nil {
+			return err
+		}
+	}
 
 	for {
 		fmt.Print("> ")
@@ -566,8 +576,6 @@ func runInteractive(ctx context.Context, state *cliState) error {
 			continue
 		}
 
-		cmd := newRootCmd(state)
-		cmd.SetContext(ctx)
 		cmd.SetArgs(args)
 
 		if err := cmd.Execute(); err != nil {
@@ -577,53 +585,9 @@ func runInteractive(ctx context.Context, state *cliState) error {
 }
 
 func splitArgs(line string) ([]string, error) {
-	var args []string
-	var current strings.Builder
-	inQuote := false
-	var quote rune
-	escaped := false
-
-	for _, r := range line {
-		if escaped {
-			current.WriteRune(r)
-			escaped = false
-			continue
-		}
-		if r == '\\' && inQuote {
-			escaped = true
-			continue
-		}
-		if inQuote {
-			if r == quote {
-				inQuote = false
-				continue
-			}
-			current.WriteRune(r)
-			continue
-		}
-		if r == '"' || r == '\'' {
-			inQuote = true
-			quote = r
-			continue
-		}
-		if r == ' ' || r == '\t' {
-			if current.Len() > 0 {
-				args = append(args, current.String())
-				current.Reset()
-			}
-			continue
-		}
-		current.WriteRune(r)
-	}
-
-	if escaped {
-		return nil, errors.New("unfinished escape")
-	}
-	if inQuote {
-		return nil, errors.New("unterminated quote")
-	}
-	if current.Len() > 0 {
-		args = append(args, current.String())
+	args, err := shlex.Split(line)
+	if err != nil {
+		return nil, fmt.Errorf("parse input: %w", err)
 	}
 	return args, nil
 }

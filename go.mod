@@ -3,6 +3,11 @@ module go-cache-server-mini
 go 1.24.5
 
 require (
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
+	github.com/spf13/cobra v1.10.2
+)
+
+require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.14.2 // indirect
@@ -33,7 +38,6 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.56.0 // indirect
-	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
